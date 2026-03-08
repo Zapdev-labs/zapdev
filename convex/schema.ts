@@ -116,6 +116,7 @@ export default defineSchema({
   fragments: defineTable({
     messageId: v.id("messages"),
     sandboxUrl: v.string(),
+    sandboxId: v.optional(v.string()),
     title: v.string(),
     files: v.any(),
     metadata: v.optional(v.any()),
