@@ -45,22 +45,12 @@ type FigmaImportRunEvent = {
   };
 };
 
-// Build middleware array conditionally
-// Realtime middleware requires INNGEST_SIGNING_KEY to be set
-// If not configured, we skip it to avoid initialization errors
-const middleware = [];
-try {
-  // Only add realtime middleware if we have the required environment
-  if (process.env.INNGEST_SIGNING_KEY || process.env.NODE_ENV === "development") {
-    middleware.push(realtimeMiddleware());
-  }
-} catch (error) {
-  console.warn("[Inngest] Realtime middleware not available:", error instanceof Error ? error.message : "Unknown error");
-}
-
-export const inngest = new Inngest({
-  id: "zapdev",
-  middleware,
+const inngestOptions: {
+  id: "zapdev";
+  schemas: EventSchemas;
+  middleware?: unknown[];
+} = {
+  id: "zapdev" as const,
   schemas: new EventSchemas().fromRecord<{
     "agent/code.run": CodeAgentRunEvent;
     "agent/code-agent-kit.run": AgentKitRunEvent;
@@ -68,4 +58,14 @@ export const inngest = new Inngest({
     "agent/fix-errors.run": FixErrorsRunEvent;
     "agent/figma-import.run": FigmaImportRunEvent;
   }>(),
-});
+};
+
+try {
+  if (process.env.INNGEST_SIGNING_KEY || process.env.NODE_ENV === "development") {
+    inngestOptions.middleware = [realtimeMiddleware()];
+  }
+} catch (error) {
+  console.warn("[Inngest] Realtime middleware not available:", error instanceof Error ? error.message : "Unknown error");
+}
+
+export const inngest = new Inngest(inngestOptions as ConstructorParameters<typeof Inngest>[0]);
