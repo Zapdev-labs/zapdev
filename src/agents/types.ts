@@ -88,7 +88,7 @@ export const MODEL_CONFIGS = {
     isSpeedOptimized: false,
     maxTokens: undefined,
   },
-  "google/gemini-3-pro-preview": {
+  "google/gemini-3.1-pro-preview": {
     name: "Gemini 3 Pro",
     provider: "google",
     description:
@@ -163,7 +163,7 @@ export function selectModelForTask(
   }
 
   if (userExplicitlyRequestsGemini) {
-    return "google/gemini-3-pro-preview";
+    return "google/gemini-3.1-pro-preview";
   }
 
   if (userExplicitlyRequestsKimi) {

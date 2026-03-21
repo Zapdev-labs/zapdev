@@ -62,7 +62,7 @@ export const ProjectForm = () => {
   const modelOptions = [
     { id: "auto" as ModelId, name: "Auto", image: "/auto.svg", description: "Auto-selects the best model" },
     { id: "anthropic/claude-haiku-4.5" as ModelId, name: "Claude Haiku 4.5", image: "/haiku.svg", description: "Fast and efficient" },
-    { id: "google/gemini-3-pro-preview" as ModelId, name: "Gemini 3 Pro", image: "/gemini.svg", description: "Google's most intelligent model with state-of-the-art reasoning" },
+    { id: "google/gemini-3.1-pro-preview" as ModelId, name: "Gemini 3.1 Pro", image: "/gemini.svg", description: "Google's most intelligent model with state-of-the-art reasoning" },
     { id: "openai/gpt-5.1-codex" as ModelId, name: "GPT-5.1 Codex", image: "/openai.svg", description: "OpenAI's flagship model for complex tasks" },
     { id: "z-ai/glm-5" as ModelId, name: "Z-AI GLM 5", image: "/globe.svg", description: "Ultra-fast inference for speed-critical tasks" },
     { id: "moonshotai/kimi-k2.5" as ModelId, name: "Kimi K2.5", image: "/globe.svg", description: "Moonshot's advanced reasoning model for complex development tasks" },
