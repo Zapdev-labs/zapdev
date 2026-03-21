@@ -296,12 +296,15 @@ export const codeAgentFunction = inngest.createFunction(
                   }
                   return updatedFiles;
                 } catch (e) {
+                  console.error("[CODING] createOrUpdateFiles failed:", e);
                   return "Error: " + e;
                 }
               }
             );
             if (typeof newFiles === "object") {
               network.state.data.files = newFiles;
+            } else {
+              console.error("[CODING] createOrUpdateFiles returned non-object (silently failed):", newFiles);
             }
           },
         }),
@@ -383,9 +386,13 @@ export const codeAgentFunction = inngest.createFunction(
       result.state.data.summary
     );
 
-    const isError =
-      !result.state.data.summary ||
-      Object.keys(result.state.data.files || {}).length === 0;
+    const hasSummary = Boolean(result.state.data.summary);
+    const fileCount = Object.keys(result.state.data.files || {}).length;
+    const isError = !hasSummary || fileCount === 0;
+
+    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, isError=${isError}`);
+    if (!hasSummary) console.error("[CODING] No <task_summary> produced — agent may have hit maxIter or build kept failing");
+    if (fileCount === 0) console.error("[CODING] No files written — createOrUpdateFiles may have silently failed (sandbox timeout?)");
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
