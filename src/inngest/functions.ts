@@ -259,23 +259,9 @@ export const codeAgentFunction = inngest.createFunction(
             const newFiles = await step?.run(
               "createOrUpdateFiles",
               async () => {
-<<<<<<< HEAD
                 const updatedFiles = network.state.data.files || {};
                 for (const file of files) {
                   updatedFiles[file.path] = file.content;
-=======
-                try {
-                  const updatedFiles = network.state.data.files || {};
-                  const sandbox = await getSandbox(sandboxId);
-                  for (const file of files) {
-                    await sandbox.files.write(file.path, file.content);
-                    updatedFiles[file.path] = file.content;
-                  }
-                  return updatedFiles;
-                } catch (e) {
-                  console.error("[CODING] createOrUpdateFiles failed:", e);
-                  return "Error: " + e;
->>>>>>> e3b9ea64c730c54e85909ae107bfe713412710b2
                 }
                 return updatedFiles;
               }
