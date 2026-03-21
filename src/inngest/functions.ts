@@ -12,7 +12,7 @@ import { inngest } from "./client";
 import { SANDBOX_TIMEOUT } from "./types";
 import { getSandbox, lastAssistantTextMessageContent, parseAgentOutput } from "./utils";
 
-const E2B_TEMPLATE = "zapdev-nextjs";
+const E2B_TEMPLATE = "otdoges/zapdev";
 
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
