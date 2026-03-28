@@ -21,7 +21,7 @@ async function testFireworks() {
     const result = await generateText({
       model: fireworks("accounts/fireworks/routers/kimi-k2p5-turbo"),
       messages: [{ role: "user", content: "Say 'Fireworks connection working!'" }],
-      maxTokens: 50,
+      maxOutputTokens: 50,
     });
 
     console.log("\n✓ SUCCESS! Response:", result.text);
