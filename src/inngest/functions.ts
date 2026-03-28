@@ -325,7 +325,7 @@ export const codeAgentFunction = inngest.createFunction(
     if (!hasSummary) console.error("[CODING] No <task_summary> produced — agent may have hit maxIter or build kept failing");
     if (fileCount === 0) console.error("[CODING] No files written — createOrUpdateFiles may have silently failed");
 
-    const sandboxUrl = "webcontainer://local";
+    const sandboxUrl = "__WEBCONTAINER_PREVIEW__";
 
     if (isError) {
       await step.run("save-error", async () => {

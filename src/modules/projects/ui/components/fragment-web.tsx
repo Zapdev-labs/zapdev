@@ -10,7 +10,7 @@ interface Props {
   data: Doc<"fragments">;
 };
 
-const WEB_CONTAINER_PREVIEW_URL = "webcontainer://local";
+const WEB_CONTAINER_PREVIEW_URL = "__WEBCONTAINER_PREVIEW__";
 
 export function FragmentWeb({ data }: Props) {
   const [copied, setCopied] = useState(false);

@@ -4,7 +4,7 @@ import { requireAuth } from "./helpers";
 import { frameworkEnum, messageStatusEnum, messageTypeEnum } from "./schema";
 import type { Id } from "./_generated/dataModel";
 
-const WEB_CONTAINER_PREVIEW_URL = "webcontainer://local";
+const WEB_CONTAINER_PREVIEW_URL = "__WEBCONTAINER_PREVIEW__";
 
 export const enqueueForSystem = mutation({
   args: {
