@@ -77,6 +77,20 @@ function getErrorDetails(error: unknown): NetlifyErrorResponse {
   };
 }
 
+// Validate siteId format to prevent SSRF - only allow alphanumeric, hyphens, and dots
+const NETLIFY_SITE_ID_REGEX = /^[a-zA-Z0-9-]+(--[a-zA-Z0-9-]+)?$/;
+
+function validateSiteId(siteId: string): boolean {
+  return NETLIFY_SITE_ID_REGEX.test(siteId);
+}
+
+// Validate siteId format to prevent SSRF - only allow alphanumeric, hyphens, and dots
+const NETLIFY_SITE_ID_REGEX = /^[a-zA-Z0-9-]+(--[a-zA-Z0-9-]+)?$/;
+
+function validateSiteId(siteId: string): boolean {
+  return NETLIFY_SITE_ID_REGEX.test(siteId);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getUser();
@@ -95,6 +109,22 @@ export async function POST(request: NextRequest) {
     if (!siteId || typeof siteId !== "string") {
       return NextResponse.json(
         { error: "Missing required field: siteId" },
+        { status: 400 }
+      );
+    }
+
+    // Validate siteId format to prevent SSRF attacks
+    if (!validateSiteId(siteId)) {
+      return NextResponse.json(
+        { 
+          error: "Invalid siteId format",
+          code: "NETLIFY_INVALID_SITE_ID",
+          suggestions: [
+            "Site ID should only contain alphanumeric characters, hyphens, and may include a double-hyphen separator",
+            "Verify your site ID from Netlify dashboard → Site settings → General",
+            "Example format: 'abc123-def456' or 'abc123--def456'",
+          ],
+        },
         { status: 400 }
       );
     }

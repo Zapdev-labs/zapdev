@@ -26,7 +26,11 @@ async function testOpenRouter() {
 
   console.log('🔧 Testing OpenRouter connection...');
   console.log(`📍 Base URL: ${baseUrl}`);
-  console.log(`🔑 API Key: ${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}`);
+  // Security: Never log full API keys - only show first 7 and last 4 characters
+  const maskedKey = apiKey.length > 11 
+    ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}`
+    : '***';
+  console.log(`🔑 API Key: ${maskedKey}`);
   console.log('');
 
   try {
