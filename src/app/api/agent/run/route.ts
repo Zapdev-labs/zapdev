@@ -11,10 +11,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { projectId, value, model } = body as {
+    const { projectId, value, model, messageId } = body as {
       projectId?: unknown;
       value?: unknown;
       model?: unknown;
+      messageId?: unknown;
     };
 
     if (
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
         value,
         userId,
         model: typeof model === "string" && model.trim().length > 0 ? model : undefined,
+        messageId:
+          typeof messageId === "string" && messageId.trim().length > 0
+            ? messageId
+            : undefined,
       },
     });
 

@@ -99,6 +99,7 @@ export const MessageForm = ({ projectId }: Props) => {
           projectId: result.projectId,
           value: result.value,
           model: selectedModel,
+          messageId: result.messageId,
         }),
       });
 

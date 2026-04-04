@@ -84,6 +84,7 @@ export const ProjectForm = () => {
           projectId: result.id,
           value: result.value,
           model: selectedModel,
+          messageId: result.messageId,
         }),
       });
 

@@ -472,6 +472,24 @@ export const createForUser = mutation({
   },
 });
 
+export const setHasBackendForUser = mutation({
+  args: {
+    userId: v.string(),
+    projectId: v.id("projects"),
+    hasBackend: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== args.userId) {
+      throw new Error("Unauthorized");
+    }
+    await ctx.db.patch(args.projectId, {
+      hasBackend: args.hasBackend,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 /**
  * Internal: Create a project for a specific user (for use from actions/background jobs)
  */

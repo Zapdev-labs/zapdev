@@ -14,9 +14,20 @@ import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
+import {
+  FRAGMENT_TITLE_PROMPT,
+  FULLSTACK_PROMPT,
+  PROMPT,
+  RESPONSE_PROMPT,
+} from "@/prompt";
 import { PLANNING_AGENT_PROMPT } from "@/prompts/planning";
 import { RESEARCH_AGENT_PROMPT } from "@/prompts/research";
+import {
+  parseSchemaProposal,
+  runBackendImplementerAgent,
+  runSchemaProposalAgent,
+  wantsConvexBackend,
+} from "@/agents";
 import { selectModelForTask } from "@/agents/types";
 import { openrouter } from "@/agents/client";
 
@@ -255,8 +266,99 @@ export const codeAgentFunction = inngest.createFunction(
           )
         : "";
 
+    const projectId = event.data.projectId as Id<"projects">;
+    const userId = event.data.userId as string;
+
+    const project = await step.run("get-project-for-agent", async () => {
+      const convex = getConvexClient();
+      return await convex.query(api.projects.getForUser, { userId, projectId });
+    });
+
+    let backendPreload: Record<string, string> = {};
+    let schemaProposalText: string | undefined;
+
+    const needsBackendBootstrap =
+      Boolean(project && !project.hasBackend && wantsConvexBackend(userPrompt));
+
+    if (needsBackendBootstrap) {
+      const triggerMessageId = await step.run("resolve-trigger-message", async () => {
+        const explicit = event.data.messageId as string | undefined;
+        if (explicit && explicit.length > 0) {
+          return explicit as Id<"messages">;
+        }
+        const convex = getConvexClient();
+        const messages = await convex.query(api.messages.listForUser, {
+          userId,
+          projectId,
+        });
+        const lastUser = [...messages].reverse().find((m) => m.role === "USER");
+        return lastUser?._id ?? null;
+      });
+
+      if (triggerMessageId) {
+        const schemaProposalResult = await step.run("schema-proposal-agent", () =>
+          runSchemaProposalAgent(userPrompt, plan || undefined, research || undefined)
+        );
+
+        if (schemaProposalResult.success) {
+          schemaProposalText = schemaProposalResult.schemaProposal;
+          const parsed = parseSchemaProposal(schemaProposalResult.schemaProposal);
+          const schemaProposalRowId = await step.run("persist-schema-proposal", async () => {
+            const convex = getConvexClient();
+            return await convex.mutation(api.schemaProposals.createForUser, {
+              userId,
+              projectId,
+              messageId: triggerMessageId,
+              proposal: schemaProposalResult.schemaProposal,
+              parsedTables:
+                parsed.tables.length > 0
+                  ? parsed.tables.map((t) => ({
+                      name: t.name,
+                      purpose: t.purpose,
+                      fields: t.fields,
+                      indexes: t.indexes,
+                    }))
+                  : undefined,
+              parsedRelationships:
+                parsed.relationships.length > 0 ? parsed.relationships : undefined,
+              status: "PENDING",
+            });
+          });
+
+          const backendResult = await step.run("backend-implementer", () =>
+            runBackendImplementerAgent(
+              userPrompt,
+              schemaProposalResult.schemaProposal,
+              plan || undefined
+            )
+          );
+
+          if (backendResult.success && Object.keys(backendResult.files).length > 0) {
+            backendPreload = backendResult.files;
+            await step.run("finalize-backend-bootstrap", async () => {
+              const convex = getConvexClient();
+              await convex.mutation(api.schemaProposals.markImplementedForUser, {
+                userId,
+                schemaProposalId: schemaProposalRowId,
+              });
+              await convex.mutation(api.projects.setHasBackendForUser, {
+                userId,
+                projectId,
+                hasBackend: true,
+              });
+            });
+          }
+        }
+      }
+    }
+
+    const useFullstackPrompt =
+      Boolean(project?.hasBackend) ||
+      wantsConvexBackend(userPrompt) ||
+      Object.keys(backendPreload).length > 0;
+
     const state = createState<AgentState>(
-      { summary: "", files: {} },
+      { summary: "", files: { ...backendPreload } },
       { messages: previousMessages }
     );
 
@@ -273,19 +375,36 @@ export const codeAgentFunction = inngest.createFunction(
         ? "\n\nUse the implementation plan and research findings above as your blueprint. Follow the plan precisely and apply the research insights to ensure accuracy."
         : "";
 
-    const augmentedPrompt = `${userPrompt}${planBlock}${researchBlock}${contextNote}`;
+    const convexBlock =
+      schemaProposalText || Object.keys(backendPreload).length > 0
+        ? `\n\n<convex_context>\n${
+            schemaProposalText
+              ? `Schema design (approved):\n${schemaProposalText}\n\n`
+              : ""
+          }${
+            Object.keys(backendPreload).length > 0
+              ? `Convex backend files are already present in the workspace: ${Object.keys(
+                  backendPreload
+                ).join(", ")}. Extend them only if needed; do not discard them.\n`
+              : ""
+          }</convex_context>`
+        : "";
+
+    const augmentedPrompt = `${userPrompt}${planBlock}${researchBlock}${convexBlock}${contextNote}`;
 
     // ── Step 5: Code Agent (user-selected model) ─────────────────────────────
     const selectedModel = getModelForAgent(
       event.data.model as string | undefined,
       userPrompt
     );
-    console.log(`[CODING] Starting with ${selectedModel}...`);
+    console.log(
+      `[CODING] Starting with ${selectedModel} (fullstack=${useFullstackPrompt})...`
+    );
 
     const codeAgent = createAgent<AgentState>({
       name: "code-agent",
       description: "An expert coding agent",
-      system: PROMPT,
+      system: useFullstackPrompt ? FULLSTACK_PROMPT : PROMPT,
       model: openai({
         model: selectedModel,
         baseUrl: "https://openrouter.ai/api/v1",
@@ -422,8 +541,6 @@ export const codeAgentFunction = inngest.createFunction(
 
       await step.run("save-result", async () => {
         const convex = getConvexClient();
-        const userId = event.data.userId as string;
-        const projectId = event.data.projectId as Id<"projects">;
 
         const messageId = await convex.mutation(api.messages.createForUser, {
           userId,
@@ -433,6 +550,9 @@ export const codeAgentFunction = inngest.createFunction(
           type: "RESULT",
         });
 
+        const backendKeys = Object.keys(backendPreload);
+        const hasBackendFiles = backendKeys.length > 0;
+
         await convex.mutation(api.messages.createFragmentForUser, {
           userId,
           messageId: messageId as Id<"messages">,
@@ -440,6 +560,10 @@ export const codeAgentFunction = inngest.createFunction(
           title: parseAgentOutput(fragmentTitleOutput),
           files: result.state.data.files,
           framework: "NEXTJS",
+          ...(hasBackendFiles && {
+            hasBackend: true,
+            backendFiles: backendPreload,
+          }),
         });
 
         return messageId;

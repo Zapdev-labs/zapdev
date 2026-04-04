@@ -22,3 +22,5 @@ export {
   runBackendImplementerAgent,
   type BackendAgentResult,
 } from "./backend-agent";
+
+export { wantsConvexBackend } from "./wants-backend";
