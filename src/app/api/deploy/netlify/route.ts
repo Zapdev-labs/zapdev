@@ -84,13 +84,6 @@ function validateSiteId(siteId: string): boolean {
   return NETLIFY_SITE_ID_REGEX.test(siteId);
 }
 
-// Validate siteId format to prevent SSRF - only allow alphanumeric, hyphens, and dots
-const NETLIFY_SITE_ID_REGEX = /^[a-zA-Z0-9-]+(--[a-zA-Z0-9-]+)?$/;
-
-function validateSiteId(siteId: string): boolean {
-  return NETLIFY_SITE_ID_REGEX.test(siteId);
-}
-
 export async function POST(request: NextRequest) {
   try {
     const user = await getUser();
