@@ -157,7 +157,7 @@ export function selectModelForTask(
   }
 
   if (userExplicitlyRequestsKimi) {
-    return "moonshotai/kimi-k2.5";
+    return "moonshotai/kimi-k2.5:nitro";
   }
 
   return defaultModel;
