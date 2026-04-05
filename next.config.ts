@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
     {
       source: "/projects/:path*",
       headers: [
+        { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      ],
+    },
+    {
+      source: "/api/uploadthing/:path*",
+      headers: [
         { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
         { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
       ],

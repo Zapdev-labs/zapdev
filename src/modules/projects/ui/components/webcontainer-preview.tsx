@@ -715,7 +715,7 @@ server.listen(3000, () => console.log("ready"))
 
       try {
         const { WebContainer } = await import("@webcontainer/api");
-        const webcontainer = await WebContainer.boot({ coep: "credentialless" });
+        const webcontainer = await WebContainer.boot({ coep: "require-corp" });
         teardown = () => {
           runProcessRef.current?.kill();
           runProcessRef.current = null;
