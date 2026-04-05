@@ -390,6 +390,11 @@ export const codeAgentFunction = inngest.createFunction(
           type: "ERROR",
         });
       });
+
+      // Throw error to mark Inngest run as failed
+      throw new Error(
+        `Agent failed: no summary and no files written (hasSummary=${hasSummary}, fileCount=${fileCount})`
+      );
     } else {
       // Generate title + response from the summary
       const fragmentTitleGenerator = createAgent({
