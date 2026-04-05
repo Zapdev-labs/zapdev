@@ -6,12 +6,20 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { MessageCard } from "./message-card";
 import { MessageForm } from "./message-form";
 import { MessageLoading } from "./message-loading";
+import type { SelectedElement } from "./visual-selector";
+
+interface PendingElementInstruction {
+  element: SelectedElement;
+  instruction: string;
+}
 
 interface Props {
   projectId: string;
   activeFragment: Doc<"fragments"> | null;
   setActiveFragment: (fragment: Doc<"fragments"> | null) => void;
   onStreamingFiles?: (files: Record<string, string>) => void;
+  pendingElementInstruction?: PendingElementInstruction | null;
+  onInstructionSent?: () => void;
 }
 
 type MessageWithRelations = Doc<"messages"> & {
@@ -23,7 +31,9 @@ export const MessagesContainer = ({
   projectId,
   activeFragment,
   setActiveFragment,
-  onStreamingFiles
+  onStreamingFiles,
+  pendingElementInstruction,
+  onInstructionSent,
 }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastAssistantMessageIdRef = useRef<string | null>(null);
@@ -85,7 +95,12 @@ export const MessagesContainer = ({
       </div>
       <div className="relative p-3 pt-1">
         <div className="absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-transparent to-background pointer-events-none" />
-        <MessageForm projectId={projectId} onStreamingFiles={onStreamingFiles} />
+        <MessageForm 
+          projectId={projectId} 
+          onStreamingFiles={onStreamingFiles}
+          pendingElementInstruction={pendingElementInstruction}
+          onInstructionSent={onInstructionSent}
+        />
       </div>
     </div>
   );

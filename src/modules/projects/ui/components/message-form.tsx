@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { toast } from "sonner";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,13 +28,22 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import { MousePointerClick, Code2 } from "lucide-react";
 
 import { Usage } from "./usage";
 import type { OurFileRouter } from "@/lib/uploadthing";
+import type { SelectedElement } from "./visual-selector";
+
+interface PendingElementInstruction {
+  element: SelectedElement;
+  instruction: string;
+}
 
 interface Props {
   projectId: string;
   onStreamingFiles?: (files: Record<string, string>) => void;
+  pendingElementInstruction?: PendingElementInstruction | null;
+  onInstructionSent?: () => void;
 };
 
 const formSchema = z.object({
@@ -50,7 +59,12 @@ interface AttachmentData {
   height?: number;
 }
 
-export const MessageForm = ({ projectId }: Props) => {
+export const MessageForm = ({ 
+  projectId, 
+  onStreamingFiles,
+  pendingElementInstruction,
+  onInstructionSent,
+}: Props) => {
   const router = useRouter();
 
   const usage = useQuery(api.usage.getUsage);
@@ -82,6 +96,18 @@ export const MessageForm = ({ projectId }: Props) => {
     },
     mode: "onSubmit",
   });
+
+  // Handle pending element instruction from visual selector
+  useEffect(() => {
+    if (pendingElementInstruction) {
+      const { element, instruction } = pendingElementInstruction;
+      const elementContext = `\n\n[Visual Selection Context]\nSelected element: <${element.tagName}>${element.id ? ` #${element.id}` : ""}${element.className ? ` .${element.className.split(" ").slice(0, 2).join(".")}` : ""}\nSelector: ${element.selector}\nCurrent text: "${element.textContent?.slice(0, 100) || "N/A"}"`;
+      
+      const fullMessage = instruction + elementContext;
+      form.setValue("value", fullMessage, { shouldDirty: true });
+      onInstructionSent?.();
+    }
+  }, [pendingElementInstruction, form, onInstructionSent]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {

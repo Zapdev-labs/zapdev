@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, forwardRef } from "react";
 import type { WebContainerProcess } from "@webcontainer/api";
 
 interface Props {
@@ -663,15 +663,16 @@ function buildViteProjectFiles(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function WebContainerPreview({
+export const WebContainerPreview = forwardRef<HTMLIFrameElement, Props>(function WebContainerPreview({
   files,
   refreshKey,
   onPreviewUrlChange,
-}: Props) {
+}, forwardedRef) {
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>("Booting preview...");
   const [error, setError] = useState<string>("");
+  const internalRef = useRef<HTMLIFrameElement>(null);
   const runProcessRef = useRef<WebContainerProcess | null>(null);
 
   // Determine the final file set to mount
@@ -892,10 +893,11 @@ server.listen(3000, () => console.log("ready"))
 
   return (
     <iframe
+      ref={forwardedRef || internalRef}
       className="h-full w-full"
       sandbox="allow-forms allow-modals allow-scripts allow-same-origin allow-popups"
       loading="lazy"
       src={previewUrl}
     />
   );
-}
+});
