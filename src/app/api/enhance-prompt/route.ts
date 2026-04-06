@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[DEBUG] Enhancing prompt with length:", prompt.length);
-    console.log("[DEBUG] Using model: moonshotai/kimi-k2.5:nitro");
+    console.log("[DEBUG] Using model: x-ai/grok-4.1-fast");
     console.log("[DEBUG] API Base URL:", baseUrl);
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -95,11 +95,11 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-        "X-Title": "ZapDev Prompt Enhancer",
+        "HTTP-Referer": "https://zapdev.link",
+        "X-Title": "zapdev",
       },
       body: JSON.stringify({
-        model: "moonshotai/kimi-k2.5:nitro",
+        model: "x-ai/grok-4.1-fast",
         messages: [
           {
             role: "system",

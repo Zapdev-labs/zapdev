@@ -405,6 +405,8 @@ export const codeAgentFunction = inngest.createFunction(
       name: "code-agent",
       description: "An expert coding agent",
       system: useFullstackPrompt ? FULLSTACK_PROMPT : PROMPT,
+      system: PROMPT,
+      tool_choice: "auto",
       model: openai({
         model: selectedModel,
         baseUrl: "https://openrouter.ai/api/v1",
@@ -423,11 +425,11 @@ export const codeAgentFunction = inngest.createFunction(
         }),
         createTool({
           name: "createOrUpdateFiles",
-          description: "Create or update files in the sandbox",
+          description: "MANDATORY: Use this tool to write files to the sandbox. You MUST call this tool with an array of files to create or update. Each file needs a relative path and content string. ALWAYS use this tool instead of printing file contents in your response.",
           parameters: z.object({
             files: z.array(
-              z.object({ path: z.string(), content: z.string() })
-            ),
+              z.object({ path: z.string().describe("Relative file path, e.g., app/page.tsx"), content: z.string().describe("Full file content") })
+            ).describe("Array of files to create or update"),
           }),
           handler: async (
             { files },
@@ -438,7 +440,9 @@ export const codeAgentFunction = inngest.createFunction(
               updatedFiles[file.path] = file.content;
             }
             network.state.data.files = updatedFiles;
-            console.log(`[CODING] Files saved: ${Object.keys(updatedFiles).join(", ")}`);
+            const fileList = Object.keys(updatedFiles);
+            console.log(`[CODING] Files saved: ${fileList.join(", ")}`);
+            return `Successfully saved ${files.length} file(s): ${files.map(f => f.path).join(", ")}. Total files in workspace: ${fileList.length}`;
           },
         }),
         createTool({
@@ -456,9 +460,12 @@ export const codeAgentFunction = inngest.createFunction(
         onResponse: async ({ result, network }) => {
           const lastAssistantMessageText =
             lastAssistantTextMessageContent(result);
+          console.log(`[CODING] Agent response received, messages: ${result.output.length}, text length: ${lastAssistantMessageText?.length || 0}`);
+          
           if (lastAssistantMessageText && network) {
             if (lastAssistantMessageText.includes("<task_summary>")) {
               network.state.data.summary = lastAssistantMessageText;
+              console.log("[CODING] Task summary captured");
             }
           }
           return result;
@@ -482,6 +489,7 @@ export const codeAgentFunction = inngest.createFunction(
     });
 
     const result = await network.run(augmentedPrompt, { state });
+    console.log(`[CODING] Network run completed`);
 
     // ── Resolve summary & error state ────────────────────────────────────────
     const fileCount = Object.keys(result.state.data.files || {}).length;
@@ -509,6 +517,11 @@ export const codeAgentFunction = inngest.createFunction(
           type: "ERROR",
         });
       });
+
+      // Throw error to mark Inngest run as failed
+      throw new Error(
+        `Agent failed: no summary and no files written (hasSummary=${hasSummary}, fileCount=${fileCount})`
+      );
     } else {
       // Generate title + response from the summary
       const fragmentTitleGenerator = createAgent({

@@ -33,6 +33,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: false,
     maxTokens: undefined,
+    isFree: false,
   },
   "openai/gpt-5.1-codex": {
     name: "GPT-5.1 Codex",
@@ -44,6 +45,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: false,
     maxTokens: undefined,
+    isFree: false,
   },
   "z-ai/glm-5": {
     name: "Z-AI GLM 5",
@@ -54,6 +56,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: true,
     isSpeedOptimized: true,
     maxTokens: 4096,
+    isFree: false,
   },
   "moonshotai/kimi-k2.5:nitro": {
     name: "Kimi K2.5 Nitro",
@@ -65,6 +68,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: true,
     maxTokens: undefined,
+    isFree: false,
   },
   "moonshotai/kimi-k2-0905": {
     name: "Kimi K2",
@@ -76,6 +80,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: false,
     maxTokens: undefined,
+    isFree: false,
   },
   "moonshotai/kimi-k2.5": {
     name: "Kimi K2.5",
@@ -87,17 +92,18 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: false,
     maxTokens: undefined,
+    isFree: false,
   },
-  "google/gemini-3.1-pro-preview": {
-    name: "Gemini 3 Pro",
-    provider: "google",
-    description:
-      "Google's most intelligent model with state-of-the-art reasoning",
+  "qwen/qwen3.6-plus:free": {
+    name: "Qwen 3.6 Plus",
+    provider: "openrouter",
+    description: "Alibaba's Qwen 3.6 Plus via OpenRouter — free tier model",
     temperature: 0.7,
     supportsFrequencyPenalty: false,
     supportsSubagents: false,
     isSpeedOptimized: false,
     maxTokens: undefined,
+    isFree: true,
   },
   "accounts/fireworks/routers/kimi-k2p5-turbo": {
     name: "Kimi on Crack (Firepass)",
@@ -109,6 +115,7 @@ export const MODEL_CONFIGS = {
     supportsSubagents: false,
     isSpeedOptimized: true,
     maxTokens: undefined,
+    isFree: false,
   },
   "morph/morph-v3-large": {
     name: "Morph V3 Large",
@@ -120,6 +127,7 @@ export const MODEL_CONFIGS = {
     isSpeedOptimized: true,
     maxTokens: 2048,
     isSubagentOnly: true,
+    isFree: false,
   },
   "x-ai/grok-4.1-fast": {
     name: "Grok 4.1 Fast",
@@ -131,6 +139,7 @@ export const MODEL_CONFIGS = {
     isSpeedOptimized: true,
     maxTokens: 4096,
     isSubagentOnly: true,
+    isFree: false,
   },
 } as const;
 
@@ -153,7 +162,7 @@ export function selectModelForTask(
   }
 
   if (userExplicitlyRequestsGemini) {
-    return "google/gemini-3.1-pro-preview";
+    return "qwen/qwen3.6-plus:free";
   }
 
   if (userExplicitlyRequestsKimi) {
@@ -177,4 +186,19 @@ export function frameworkToConvexEnum(
     svelte: "SVELTE",
   };
   return mapping[framework];
+}
+
+/**
+ * List of free models that don't consume credits
+ */
+export const FREE_MODELS: ModelId[] = [
+  "qwen/qwen3.6-plus:free",
+];
+
+/**
+ * Check if a model is free (doesn't consume credits)
+ */
+export function isFreeModel(modelId: ModelId): boolean {
+  if (modelId === "auto") return false;
+  return FREE_MODELS.includes(modelId);
 }

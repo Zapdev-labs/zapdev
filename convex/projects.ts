@@ -36,6 +36,7 @@ export const create = mutation({
 export const createWithMessage = action({
   args: {
     value: v.string(),
+    model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get the authenticated user
@@ -45,14 +46,19 @@ export const createWithMessage = action({
     }
     const userId = identity.subject;
 
-    // Check and consume credit first
-    const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
-    if (creditResult.creditsRemaining <= 0) {
-      throw new Error("You have run out of credits");
-    }
+    // Check if model is free - if so, skip credit check
+    const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Consume the credit
-    await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
+    // Check and consume credit first (only for non-free models)
+    if (!isFreeModel) {
+      const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
+      if (creditResult.creditsRemaining <= 0) {
+        throw new Error("You have run out of credits");
+      }
+
+      // Consume the credit
+      await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
+    }
 
     // Generate a random project name (mimicking generateSlug from random-word-slugs)
     const adjectives = ["happy", "sunny", "clever", "bright", "swift", "bold", "calm", "eager"];
@@ -94,6 +100,7 @@ export const createWithMessage = action({
 export const createWithMessageAndAttachments = action({
   args: {
     value: v.string(),
+    model: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -113,14 +120,19 @@ export const createWithMessageAndAttachments = action({
     }
     const userId = identity.subject;
 
-    // Check and consume credit first
-    const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
-    if (creditResult.creditsRemaining <= 0) {
-      throw new Error("You have run out of credits");
-    }
+    // Check if model is free - if so, skip credit check
+    const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Consume the credit
-    await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
+    // Check and consume credit first (only for non-free models)
+    if (!isFreeModel) {
+      const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
+      if (creditResult.creditsRemaining <= 0) {
+        throw new Error("You have run out of credits");
+      }
+
+      // Consume the credit
+      await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
+    }
 
     // Generate a random project name (mimicking generateSlug from random-word-slugs)
     const adjectives = ["happy", "sunny", "clever", "bright", "swift", "bold", "calm", "eager"];

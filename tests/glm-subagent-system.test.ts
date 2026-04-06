@@ -36,7 +36,7 @@ describe('GLM 4.7 Model Selection', () => {
     const prompt = 'Use Gemini to analyze this code.';
     const result = selectModelForTask(prompt);
     
-    expect(result).toBe('google/gemini-3.1-pro-preview');
+    expect(result).toBe('qwen/qwen3.6-plus:free');
   });
 
   it('respects explicit Kimi requests', () => {

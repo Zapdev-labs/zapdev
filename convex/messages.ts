@@ -55,6 +55,7 @@ export const createWithAttachments = action({
   args: {
     value: v.string(),
     projectId: v.string(),
+    model: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -73,14 +74,19 @@ export const createWithAttachments = action({
     // Validate project ID format (Convex ID)
     const projectId = args.projectId as Id<"projects">;
 
-    // Check and consume credit first
-    const creditResult = await ctx.runQuery(api.usage.getUsage);
-    if (creditResult.creditsRemaining <= 0) {
-      throw new Error("You have run out of credits");
-    }
+    // Check if model is free - if so, skip credit check
+    const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Consume the credit
-    await ctx.runMutation(api.usage.checkAndConsumeCredit);
+    // Check and consume credit first (only for non-free models)
+    if (!isFreeModel) {
+      const creditResult = await ctx.runQuery(api.usage.getUsage);
+      if (creditResult.creditsRemaining <= 0) {
+        throw new Error("You have run out of credits");
+      }
+
+      // Consume the credit
+      await ctx.runMutation(api.usage.checkAndConsumeCredit);
+    }
 
     // Create the message
     const messageId = await ctx.runMutation(api.messages.create, {

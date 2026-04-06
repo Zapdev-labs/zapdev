@@ -6,6 +6,10 @@ import { createFireworks } from "@ai-sdk/fireworks";
 export const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY!,
   baseURL: "https://openrouter.ai/api/v1",
+  headers: {
+    "HTTP-Referer": "https://zapdev.link",
+    "X-Title": "zapdev",
+  },
 });
 
 export const cerebras = createCerebras({

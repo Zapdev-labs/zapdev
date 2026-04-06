@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import { EyeIcon, CodeIcon, CrownIcon } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -22,6 +22,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { filterAIGeneratedFiles } from "@/lib/filter-ai-files";
 import { useWebContainerRunner } from "../hooks/use-webcontainer-runner";
+import type { SelectedElement } from "../components/visual-selector";
 
 // Dynamically import heavy components
 const FileExplorer = dynamic(() => import("@/components/file-explorer").then(m => m.FileExplorer), {
@@ -33,6 +34,11 @@ const FragmentWeb = dynamic(() => import("../components/fragment-web").then(m =>
   loading: () => <p className="p-4">Loading preview...</p>,
   ssr: false,
 });
+
+interface PendingElementInstruction {
+  element: SelectedElement;
+  instruction: string;
+}
 
 interface Props {
   projectId: string;
@@ -47,6 +53,7 @@ export const ProjectView = ({ projectId }: Props) => {
   const [activeFragment, setActiveFragment] = useState<Doc<"fragments"> | null>(null);
   const [tabState, setTabState] = useState<"preview" | "code">("preview");
   const [streamingFiles, setStreamingFiles] = useState<Record<string, string>>({});
+  const [pendingElementInstruction, setPendingElementInstruction] = useState<PendingElementInstruction | null>(null);
 
   const explorerFiles = useMemo(() => {
     let files: Record<string, string> = {};
@@ -89,6 +96,14 @@ export const ProjectView = ({ projectId }: Props) => {
     }
   }, [activeFragment]);
 
+  const handleElementAskAI = useCallback((element: SelectedElement, instruction: string) => {
+    setPendingElementInstruction({ element, instruction });
+  }, []);
+
+  const handleInstructionSent = useCallback(() => {
+    setPendingElementInstruction(null);
+  }, []);
+
   return (
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
@@ -109,6 +124,8 @@ export const ProjectView = ({ projectId }: Props) => {
                 activeFragment={activeFragment}
                 setActiveFragment={setActiveFragment}
                 onStreamingFiles={handleStreamingFiles}
+                pendingElementInstruction={pendingElementInstruction}
+                onInstructionSent={handleInstructionSent}
               />
             </Suspense>
           </ErrorBoundary>
@@ -145,7 +162,12 @@ export const ProjectView = ({ projectId }: Props) => {
               </div>
             </div>
             <TabsContent value="preview">
-              {!!activeFragment && <FragmentWeb data={activeFragment} />}
+              {!!activeFragment && (
+                <FragmentWeb 
+                  data={activeFragment} 
+                  onElementAskAI={handleElementAskAI}
+                />
+              )}
             </TabsContent>
             <TabsContent value="code" className="min-h-0">
               {activeFragment && (

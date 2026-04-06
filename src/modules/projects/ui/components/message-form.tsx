@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { toast } from "sonner";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,13 +28,22 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import { MousePointerClick, Code2 } from "lucide-react";
 
 import { Usage } from "./usage";
 import type { OurFileRouter } from "@/lib/uploadthing";
+import type { SelectedElement } from "./visual-selector";
+
+interface PendingElementInstruction {
+  element: SelectedElement;
+  instruction: string;
+}
 
 interface Props {
   projectId: string;
   onStreamingFiles?: (files: Record<string, string>) => void;
+  pendingElementInstruction?: PendingElementInstruction | null;
+  onInstructionSent?: () => void;
 };
 
 const formSchema = z.object({
@@ -50,7 +59,12 @@ interface AttachmentData {
   height?: number;
 }
 
-export const MessageForm = ({ projectId }: Props) => {
+export const MessageForm = ({ 
+  projectId, 
+  onStreamingFiles,
+  pendingElementInstruction,
+  onInstructionSent,
+}: Props) => {
   const router = useRouter();
 
   const usage = useQuery(api.usage.getUsage);
@@ -68,7 +82,7 @@ export const MessageForm = ({ projectId }: Props) => {
   const modelOptions = [
     { id: "auto" as ModelId, name: "Auto", image: "/auto.svg", description: "Auto-selects the best model" },
     { id: "anthropic/claude-haiku-4.5" as ModelId, name: "Claude Haiku 4.5", image: "/haiku.svg", description: "Fast and efficient" },
-    { id: "google/gemini-3.1-pro-preview" as ModelId, name: "Gemini 3.1 Pro", image: "/gemini.svg", description: "Google's most intelligent model with state-of-the-art reasoning" },
+    { id: "qwen/qwen3.6-plus:free" as ModelId, name: "Qwen 3.6 Plus (Free)", image: "/globe.svg", description: "Alibaba's Qwen 3.6 Plus via OpenRouter — free tier model" },
     { id: "openai/gpt-5.1-codex" as ModelId, name: "GPT-5.1 Codex", image: "/openai.svg", description: "OpenAI's flagship model for complex tasks" },
     { id: "z-ai/glm-5" as ModelId, name: "Z-AI GLM 5", image: "/globe.svg", description: "Ultra-fast inference for speed-critical tasks" },
     { id: "moonshotai/kimi-k2.5" as ModelId, name: "Kimi K2.5", image: "/globe.svg", description: "Moonshot's advanced reasoning model for complex development tasks" },
@@ -83,12 +97,25 @@ export const MessageForm = ({ projectId }: Props) => {
     mode: "onSubmit",
   });
 
+  // Handle pending element instruction from visual selector
+  useEffect(() => {
+    if (pendingElementInstruction) {
+      const { element, instruction } = pendingElementInstruction;
+      const elementContext = `\n\n[Visual Selection Context]\nSelected element: <${element.tagName}>${element.id ? ` #${element.id}` : ""}${element.className ? ` .${element.className.split(" ").slice(0, 2).join(".")}` : ""}\nSelector: ${element.selector}\nCurrent text: "${element.textContent?.slice(0, 100) || "N/A"}"`;
+      
+      const fullMessage = instruction + elementContext;
+      form.setValue("value", fullMessage, { shouldDirty: true });
+      onInstructionSent?.();
+    }
+  }, [pendingElementInstruction, form, onInstructionSent]);
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsCreating(true);
       const result = await createMessageWithAttachments({
         value: values.value,
         projectId,
+        model: selectedModel,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
