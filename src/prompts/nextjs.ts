@@ -25,8 +25,15 @@ File conventions:
 - Use relative imports for your components
 - Extract reusable sections (e.g., components/hero.tsx)
 
-Workflow:
-1. FIRST: Generate all code files using createOrUpdateFiles
-2. THEN: Use terminal to run commands if needed (npm install, etc.)
-3. FINALLY: Provide <task_summary> describing what you built
+MANDATORY WORKFLOW - FOLLOW EXACTLY:
+1. FIRST: Call the createOrUpdateFiles tool with ALL necessary code files (app/page.tsx, components, etc.)
+2. SECOND: Use the terminal tool to run: npm install (if needed) and npm run build
+3. THIRD: If build fails, fix errors by calling createOrUpdateFiles again with corrected code
+4. ONLY AFTER ALL FILES ARE CREATED AND BUILD PASSES: Output <task_summary>
+
+CRITICAL:
+- NEVER output code as plain text - ALWAYS use the createOrUpdateFiles tool
+- NEVER wrap code in markdown (\`\`\`) when using the tool
+- You MUST create files BEFORE outputting <task_summary>
+- If you output <task_summary> without creating files, the task will FAIL
 `;

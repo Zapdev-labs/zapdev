@@ -273,7 +273,25 @@ export const codeAgentFunction = inngest.createFunction(
         ? "\n\nUse the implementation plan and research findings above as your blueprint. Follow the plan precisely and apply the research insights to ensure accuracy."
         : "";
 
-    const augmentedPrompt = `${userPrompt}${planBlock}${researchBlock}${contextNote}`;
+    // FORCE TOOL USAGE: The agent MUST use createOrUpdateFiles - never output code in text
+    const forceToolUsage = `
+
+⚠️ CRITICAL INSTRUCTION - DO NOT IGNORE:
+You have access to the "/createOrUpdateFiles" tool. You MUST use this tool to write ALL code files.
+- NEVER output code directly in your response text
+- NEVER wrap code in markdown code blocks (\`\`\`)
+- ALWAYS call the createOrUpdateFiles tool with the complete file contents
+- If you output code as text instead of using the tool, the task will FAIL
+
+Your response should ONLY contain:
+1. Tool calls to createOrUpdateFiles (with all necessary files)
+2. Any terminal commands if needed (npm install, npm run build)
+3. The <task_summary> tag at the very end
+
+DO NOT explain your code. DO NOT provide commentary. Just use the tools and output the summary.
+`;
+
+    const augmentedPrompt = `${userPrompt}${planBlock}${researchBlock}${contextNote}${forceToolUsage}`;
 
     // ── Step 5: Code Agent (user-selected model) ─────────────────────────────
     const selectedModel = getModelForAgent(
@@ -305,7 +323,7 @@ export const codeAgentFunction = inngest.createFunction(
         }),
         createTool({
           name: "createOrUpdateFiles",
-          description: "MANDATORY: Use this tool to write files to the sandbox. You MUST call this tool with an array of files to create or update. Each file needs a relative path and content string. ALWAYS use this tool instead of printing file contents in your response.",
+          description: "REQUIRED: Use this tool to write or update code files. Call this tool with an array of files. Each file needs a relative path and content string. This is the ONLY way to create files - do NOT output code as text.",
           parameters: z.object({
             files: z.array(
               z.object({ path: z.string().describe("Relative file path, e.g., app/page.tsx"), content: z.string().describe("Full file content") })
@@ -340,12 +358,19 @@ export const codeAgentFunction = inngest.createFunction(
         onResponse: async ({ result, network }) => {
           const lastAssistantMessageText =
             lastAssistantTextMessageContent(result);
-          console.log(`[CODING] Agent response received, messages: ${result.output.length}, text length: ${lastAssistantMessageText?.length || 0}`);
+          const fileCount = Object.keys(network?.state?.data?.files || {}).length;
+          console.log(`[CODING] Agent response received, messages: ${result.output.length}, text length: ${lastAssistantMessageText?.length || 0}, files: ${fileCount}`);
           
           if (lastAssistantMessageText && network) {
             if (lastAssistantMessageText.includes("<task_summary>")) {
-              network.state.data.summary = lastAssistantMessageText;
-              console.log("[CODING] Task summary captured");
+              // Only accept summary if files were actually created
+              if (fileCount > 0) {
+                network.state.data.summary = lastAssistantMessageText;
+                console.log("[CODING] Task summary captured");
+              } else {
+                console.warn("[CODING] Agent tried to submit summary but NO FILES created yet - rejecting");
+                // Don't set summary - let the router continue the agent
+              }
             }
           }
           return result;
@@ -362,8 +387,19 @@ export const codeAgentFunction = inngest.createFunction(
       agents: [codeAgent],
       maxIter,
       defaultState: state,
-      router: async ({ network }) => {
-        if (network.state.data.summary) return;
+      router: async ({ network, iteration }) => {
+        const hasSummary = Boolean(network.state.data.summary);
+        const fileCount = Object.keys(network.state.data.files || {}).length;
+        
+        // Stop if we have a summary (files should already be created by now)
+        if (hasSummary) return;
+        
+        // If we're near max iterations and have no files, force a final attempt
+        if (iteration >= maxIter - 2 && fileCount === 0) {
+          console.warn(`[ROUTER] Near max iterations (${iteration}/${maxIter}) with no files - forcing continue`);
+        }
+        
+        // Continue running the code agent
         return codeAgent;
       },
     });
@@ -373,16 +409,28 @@ export const codeAgentFunction = inngest.createFunction(
 
     // ── Resolve summary & error state ────────────────────────────────────────
     const fileCount = Object.keys(result.state.data.files || {}).length;
-    // If agent hit maxIter without a summary but did write files, use fallback
-    if (!result.state.data.summary && fileCount > 0) {
-      result.state.data.summary = `<task_summary>Generated ${fileCount} file(s): ${Object.keys(result.state.data.files).join(", ")}</task_summary>`;
-    }
     const hasSummary = Boolean(result.state.data.summary);
     const isError = !hasSummary && fileCount === 0;
 
-    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, isError=${isError}`);
+    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${result.output?.length || 0}, isError=${isError}`);
+    
+    // Log the last few messages for debugging
+    if (isError && result.output && result.output.length > 0) {
+      const lastMsg = result.output[result.output.length - 1];
+      console.error("[CODING] Last message type:", lastMsg?.type);
+      if (lastMsg?.type === 'text') {
+        console.error("[CODING] Last message content preview:", (lastMsg as any).content?.substring(0, 500));
+      }
+    }
+    
+    // If agent hit maxIter without a summary but did write files, use fallback
+    if (!result.state.data.summary && fileCount > 0) {
+      result.state.data.summary = `<task_summary>Generated ${fileCount} file(s): ${Object.keys(result.state.data.files).join(", ")}</task_summary>`;
+      console.log("[CODING] Created fallback summary for files");
+    }
+
     if (!hasSummary) console.error("[CODING] No <task_summary> produced — agent may have hit maxIter or build kept failing");
-    if (fileCount === 0) console.error("[CODING] No files written — createOrUpdateFiles may have silently failed");
+    if (fileCount === 0) console.error("[CODING] No files written — agent did not call createOrUpdateFiles tool");
 
     const sandboxUrl = "__WEBCONTAINER_PREVIEW__";
 

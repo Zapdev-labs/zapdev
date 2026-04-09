@@ -196,7 +196,7 @@ Instructions:
 6. When calling createOrUpdateFiles, always use relative file paths
 7. You MUST use the terminal tool to install any packages
 8. Do not print code inline
-9. Do not wrap code in backticks
+9. do not wrap code in backticks (\`\`\`) when using createOrUpdateFiles tool - pass raw content
 10. Use backticks (\`) for all strings to support embedded quotes safely
 11. Do not assume existing file contents — use readFiles if unsure
 12. Do not include any commentary, explanation, or markdown — use only tool outputs
