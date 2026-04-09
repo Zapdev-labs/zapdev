@@ -74,18 +74,25 @@ export const createWithAttachments = action({
     // Validate project ID format (Convex ID)
     const projectId = args.projectId as Id<"projects">;
 
-    // Check if model is free - if so, skip credit check
+    // Check if model/tier is free - if so, skip credit check
     const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Check and consume credit first (only for non-free models)
+    // Check and consume credit with tier multiplier support (only for non-free models)
     if (!isFreeModel) {
-      const creditResult = await ctx.runQuery(api.usage.getUsage);
-      if (creditResult.creditsRemaining <= 0) {
-        throw new Error("You have run out of credits");
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity || !identity.subject) {
+        throw new Error("Unauthorized");
       }
-
-      // Consume the credit
-      await ctx.runMutation(api.usage.checkAndConsumeCredit);
+      const userId = identity.subject;
+      
+      const creditResult = await ctx.runMutation(api.usage.checkAndConsumeCreditWithTier, { 
+        userId,
+        tierOrModel: args.model ?? "pro", // Default to pro tier
+      });
+      
+      if (!creditResult.success) {
+        throw new Error(creditResult.message || "You have run out of credits");
+      }
     }
 
     // Create the message

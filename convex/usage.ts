@@ -7,16 +7,75 @@ const FREE_POINTS = 5;
 const PRO_POINTS = 100;
 const UNLIMITED_POINTS = Number.MAX_SAFE_INTEGER;
 const DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const GENERATION_COST = 1;
+const BASE_GENERATION_COST = 1;
+
+// ============================================
+// CREDIT MULTIPLIER SYSTEM
+// ============================================
+
+// Tier multipliers - must match frontend TIER_CONFIGS
+export const TIER_MULTIPLIERS: Record<string, number> = {
+  cheap: 0.5,   // 2x generations (costs half)
+  pro: 1,       // Standard
+  best: 2,      // 2x cost
+};
+
+// Specific model multipliers (fallback for direct model IDs)
+export const MODEL_MULTIPLIERS: Record<string, number> = {
+  // Cheap tier models
+  "moonshotai/kimi-k2.5": 0.5,
+  "z-ai/glm-5.1": 0.5,
+  "qwen/qwen3.6-plus:free": 0, // Free
+  
+  // Pro tier models
+  "moonshotai/kimi-k2.5:nitro": 1,
+  "anthropic/claude-haiku-4.5": 1,
+  "accounts/fireworks/routers/kimi-k2p5-turbo": 1,
+  
+  // Best tier models
+  "openai/gpt-5.1-codex": 2,
+  "anthropic/claude-sonnet-4.5": 2,
+  "openai/o3": 2,
+};
 
 /**
- * Check and consume credits for a generation
- * Returns true if credits were successfully consumed, false if insufficient credits
+ * Get credit multiplier for a tier or model
+ */
+export function getCreditMultiplier(modelOrTier: string): number {
+  // First check if it's a tier
+  if (TIER_MULTIPLIERS[modelOrTier] !== undefined) {
+    return TIER_MULTIPLIERS[modelOrTier];
+  }
+  
+  // Then check if it's a specific model
+  if (MODEL_MULTIPLIERS[modelOrTier] !== undefined) {
+    return MODEL_MULTIPLIERS[modelOrTier];
+  }
+  
+  // Check if it contains tier keywords
+  if (modelOrTier.includes("cheap")) return 0.5;
+  if (modelOrTier.includes("best")) return 2;
+  if (modelOrTier.includes("pro")) return 1;
+  
+  // Check if model ID contains free
+  if (modelOrTier.endsWith(":free")) return 0;
+  
+  // Default
+  return 1;
+}
+
+/**
+ * Check and consume credits for a generation with tier/multiplier support
  */
 export const checkAndConsumeCredit = mutation({
-  args: {},
-  handler: async (ctx): Promise<{ success: boolean; remaining: number; message?: string }> => {
+  args: {
+    multiplier: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; remaining: number; message?: string; cost: number }> => {
     const userId = await requireAuth(ctx);
+    
+    const multiplier = args.multiplier ?? 1;
+    const cost = Math.max(0.5, BASE_GENERATION_COST * multiplier); // Minimum 0.5 credits
 
     // Check user's plan
     const isPro = await hasProAccess(ctx);
@@ -34,10 +93,11 @@ export const checkAndConsumeCredit = mutation({
 
     // If no usage record or expired, create/reset with max points
     if (!usage || (usage.expire && usage.expire < now)) {
+      const newPoints = Math.max(0, maxPoints - cost);
       if (usage) {
         // Reset expired usage
         await ctx.db.patch(usage._id, {
-          points: maxPoints - GENERATION_COST,
+          points: newPoints,
           expire: expiryTime,
           planType: isUnlimited ? "unlimited" : isPro ? "pro" : "free",
         });
@@ -45,29 +105,52 @@ export const checkAndConsumeCredit = mutation({
         // Create new usage record
         await ctx.db.insert("usage", {
           userId,
-          points: maxPoints - GENERATION_COST,
+          points: newPoints,
           expire: expiryTime,
           planType: isUnlimited ? "unlimited" : isPro ? "pro" : "free",
         });
       }
-      return { success: true, remaining: maxPoints - GENERATION_COST };
+      return { success: true, remaining: newPoints, cost };
     }
 
-    if (!isUnlimited && usage.points < GENERATION_COST) {
+    if (!isUnlimited && usage.points < cost) {
       const timeUntilReset = usage.expire ? Math.ceil((usage.expire - now) / 1000 / 60) : 0;
       return {
         success: false,
         remaining: usage.points,
-        message: `Insufficient credits. Your credits will reset in ${timeUntilReset} minutes.`
+        cost,
+        message: `Insufficient credits. This generation costs ${cost} credits but you only have ${usage.points.toFixed(1)}. Your credits will reset in ${timeUntilReset} minutes.`
       };
     }
 
     // Consume the credit
+    const newPoints = Math.max(0, usage.points - cost);
     await ctx.db.patch(usage._id, {
-      points: usage.points - GENERATION_COST,
+      points: newPoints,
     });
 
-    return { success: true, remaining: usage.points - GENERATION_COST };
+    return { success: true, remaining: newPoints, cost };
+  },
+});
+
+/**
+ * Check and consume credits for a specific user with tier support (for use from actions)
+ */
+export const checkAndConsumeCreditWithTier = mutation({
+  args: {
+    userId: v.string(),
+    tierOrModel: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; remaining: number; message?: string; cost: number }> => {
+    const multiplier = getCreditMultiplier(args.tierOrModel ?? "pro");
+    const cost = multiplier === 0 ? 0 : Math.max(0.5, BASE_GENERATION_COST * multiplier);
+    
+    // If cost is 0 (free tier/model), skip credit check
+    if (cost === 0) {
+      return { success: true, remaining: 999999, cost: 0 };
+    }
+    
+    return checkAndConsumeCreditInternalWithCost(ctx, args.userId, cost);
   },
 });
 
@@ -203,24 +286,13 @@ export const getUsageForUser = query({
 });
 
 /**
- * Wrapper mutation for checking and consuming credit with explicit user ID (for use from actions)
+ * Internal: Check and consume credit for a specific user with specific cost
  */
-export const checkAndConsumeCreditForUser = mutation({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return checkAndConsumeCreditInternal(ctx, args.userId);
-  },
-});
-
-/**
- * Internal: Check and consume credit for a specific user (for use from actions/background jobs)
- */
-export const checkAndConsumeCreditInternal = async (
+export const checkAndConsumeCreditInternalWithCost = async (
   ctx: any,
-  userId: string
-): Promise<{ success: boolean; remaining: number; message?: string }> => {
+  userId: string,
+  cost: number
+): Promise<{ success: boolean; remaining: number; message?: string; cost: number }> => {
   const isPro = await hasProAccess(ctx).catch(() => false);
   const isUnlimited = await hasUnlimitedAccess(ctx).catch(() => false);
   const maxPoints = isUnlimited ? UNLIMITED_POINTS : isPro ? PRO_POINTS : FREE_POINTS;
@@ -234,35 +306,67 @@ export const checkAndConsumeCreditInternal = async (
   const expiryTime = now + DURATION_MS;
 
   if (!usage || (usage.expire && usage.expire < now)) {
+    const newPoints = Math.max(0, maxPoints - cost);
     if (usage) {
       await ctx.db.patch(usage._id, {
-        points: maxPoints - GENERATION_COST,
+        points: newPoints,
         expire: expiryTime,
         planType: isUnlimited ? "unlimited" : isPro ? "pro" : "free",
       });
     } else {
       await ctx.db.insert("usage", {
         userId,
-        points: maxPoints - GENERATION_COST,
+        points: newPoints,
         expire: expiryTime,
         planType: isUnlimited ? "unlimited" : isPro ? "pro" : "free",
       });
     }
-    return { success: true, remaining: maxPoints - GENERATION_COST };
+    return { success: true, remaining: newPoints, cost };
   }
 
-  if (!isUnlimited && usage.points < GENERATION_COST) {
+  if (!isUnlimited && usage.points < cost) {
     const timeUntilReset = usage.expire ? Math.ceil((usage.expire - now) / 1000 / 60) : 0;
     return {
       success: false,
       remaining: usage.points,
-      message: `Insufficient credits. Your credits will reset in ${timeUntilReset} minutes.`
+      cost,
+      message: `Insufficient credits. This generation costs ${cost} credits but you only have ${usage.points.toFixed(1)}. Your credits will reset in ${timeUntilReset} minutes.`
     };
   }
 
+  const newPoints = Math.max(0, usage.points - cost);
   await ctx.db.patch(usage._id, {
-    points: usage.points - GENERATION_COST,
+    points: newPoints,
   });
 
-  return { success: true, remaining: usage.points - GENERATION_COST };
+  return { success: true, remaining: newPoints, cost };
 };
+
+/**
+ * Legacy: Check and consume credit for a specific user (for backward compatibility)
+ */
+export const checkAndConsumeCreditInternal = async (
+  ctx: any,
+  userId: string
+): Promise<{ success: boolean; remaining: number; message?: string }> => {
+  const result = await checkAndConsumeCreditInternalWithCost(ctx, userId, BASE_GENERATION_COST);
+  return {
+    success: result.success,
+    remaining: result.remaining,
+    message: result.message,
+  };
+};
+
+/**
+ * Wrapper mutation for checking and consuming credit with explicit user ID (for use from actions)
+ * @deprecated Use checkAndConsumeCreditWithTier instead
+ */
+export const checkAndConsumeCreditForUser = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const result = await checkAndConsumeCreditInternal(ctx, args.userId);
+    return result;
+  },
+});

@@ -2,17 +2,17 @@
 
 import { z } from "zod";
 import { toast } from "sonner";
-import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextareaAutosize from "react-textarea-autosize";
-import { ArrowUpIcon, Loader2Icon, ImageIcon, XIcon, DownloadIcon, GitBranchIcon, SparklesIcon } from "lucide-react";
+import { ArrowUpIcon, Loader2Icon, ImageIcon, XIcon, DownloadIcon, GitBranchIcon, SparklesIcon, ZapIcon, CpuIcon, CrownIcon } from "lucide-react";
 import { UploadButton } from "@uploadthing/react";
 import { useAction } from "convex/react";
 import { api } from "@/lib/convex-api";
-import type { ModelId } from "@/agents/types";
+import type { ModelTier } from "@/agents/types";
+import { TIER_CONFIGS, getDefaultModelForTier, getCreditMultiplier } from "@/agents/types";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ const formSchema = z.object({
   value: z.string()
     .min(1, { message: "Value is required" })
     .max(10000, { message: "Value is too long" }),
-})
+});
 
 interface AttachmentData {
   url: string;
@@ -38,6 +38,12 @@ interface AttachmentData {
   width?: number;
   height?: number;
 }
+
+const TIER_ICONS = {
+  cheap: ZapIcon,
+  pro: CpuIcon,
+  best: CrownIcon,
+};
 
 export const ProjectForm = () => {
   const router = useRouter();
@@ -54,27 +60,20 @@ export const ProjectForm = () => {
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
-  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelId>("auto");
+  const [isTierMenuOpen, setIsTierMenuOpen] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<ModelTier>("pro");
   const [isEnhancing, setIsEnhancing] = useState(false);
-
-  // Model configurations matching backend
-  const modelOptions = [
-    { id: "auto" as ModelId, name: "Auto", image: "/auto.svg", description: "Auto-selects the best model" },
-    { id: "anthropic/claude-haiku-4.5" as ModelId, name: "Claude Haiku 4.5", image: "/haiku.svg", description: "Fast and efficient" },
-    { id: "qwen/qwen3.6-plus:free" as ModelId, name: "Qwen 3.6 Plus (Free)", image: "/globe.svg", description: "Alibaba's Qwen 3.6 Plus via OpenRouter — free tier model" },
-    { id: "openai/gpt-5.1-codex" as ModelId, name: "GPT-5.1 Codex", image: "/openai.svg", description: "OpenAI's flagship model for complex tasks" },
-    { id: "z-ai/glm-5" as ModelId, name: "Z-AI GLM 5", image: "/globe.svg", description: "Ultra-fast inference for speed-critical tasks" },
-    { id: "moonshotai/kimi-k2.5" as ModelId, name: "Kimi K2.5", image: "/globe.svg", description: "Moonshot's advanced reasoning model for complex development tasks" },
-    { id: "accounts/fireworks/routers/kimi-k2p5-turbo" as ModelId, name: "Kimi on Crack", image: "/fireworks.svg", description: "Kimi K2.5 Turbo via Fireworks — ultra-fast inference with extended context" },
-  ];
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsCreating(true);
+      
+      // Get the actual model ID from the tier
+      const modelId = getDefaultModelForTier(selectedTier);
+      
       const result = await createProjectWithMessageAndAttachments({
         value: values.value,
-        model: selectedModel,
+        model: selectedTier, // Send the tier, backend will resolve
         attachments: attachments.length > 0 ? attachments : undefined,
       });
 
@@ -84,7 +83,7 @@ export const ProjectForm = () => {
         body: JSON.stringify({
           projectId: result.id,
           value: result.value,
-          model: selectedModel,
+          model: selectedTier, // Send the tier
         }),
       });
 
@@ -198,6 +197,10 @@ export const ProjectForm = () => {
   const isButtonDisabled = isPending || !form.formState.isValid || isUploading;
   const isEnhanceDisabled = isEnhancing || isPending || isUploading;
 
+  const currentTier = TIER_CONFIGS[selectedTier];
+  const creditMultiplier = getCreditMultiplier(selectedTier);
+  const TierIcon = TIER_ICONS[selectedTier];
+
   return (
     <Form {...form}>
       <section className="space-y-6">
@@ -239,7 +242,7 @@ export const ProjectForm = () => {
             <div className="flex flex-wrap gap-2 pt-2">
               {attachments.map((attachment, index) => (
                 <div key={index} className="relative group">
-                  <Image
+                  <img
                     src={attachment.url}
                     alt="Attachment"
                     width={80}
@@ -331,49 +334,83 @@ export const ProjectForm = () => {
                   </div>
                 </PopoverContent>
               </Popover>
-              <Popover open={isModelMenuOpen} onOpenChange={setIsModelMenuOpen}>
+              
+              {/* Tier Selector */}
+              <Popover open={isTierMenuOpen} onOpenChange={setIsTierMenuOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="size-8"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2 text-xs font-medium"
                     type="button"
                     disabled={isPending || isUploading}
-                    title="Select AI Model"
+                    title="Select AI Model Tier"
+                    style={{ 
+                      borderColor: currentTier.color,
+                      color: currentTier.color 
+                    }}
                   >
-                    {(() => {
-                      const selectedOption = modelOptions.find((opt) => opt.id === selectedModel);
-                      const imageSrc = selectedOption?.image || "/auto.svg";
-                      return <Image src={imageSrc} alt="Model" width={16} height={16} className="size-4" unoptimized />;
-                    })()}
+                    <TierIcon className="size-3.5" style={{ color: currentTier.color }} />
+                    <span>{currentTier.name}</span>
+                    {creditMultiplier !== 1 && (
+                      <span className="text-[10px] opacity-70">
+                        {creditMultiplier < 1 ? `${Math.round(1/creditMultiplier)}x` : `${creditMultiplier}x`}
+                      </span>
+                    )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-72 p-2" align="start">
-                  <div className="flex flex-col gap-1">
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                      Select Model
+                <PopoverContent className="w-80 p-3" align="start">
+                  <div className="flex flex-col gap-2">
+                    <div className="px-1 py-1 text-xs font-semibold text-muted-foreground">
+                      Select Model Tier
                     </div>
-                    {modelOptions.map((option) => {
-                      const isSelected = selectedModel === option.id;
+                    {(Object.keys(TIER_CONFIGS) as ModelTier[]).map((tier) => {
+                      const config = TIER_CONFIGS[tier];
+                      const isSelected = selectedTier === tier;
+                      const TierIconComponent = TIER_ICONS[tier];
+                      const multiplier = config.creditMultiplier;
+                      
                       return (
                         <button
-                          key={option.id}
+                          key={tier}
                           type="button"
                           onClick={() => {
-                            setSelectedModel(option.id);
-                            setIsModelMenuOpen(false);
+                            setSelectedTier(tier);
+                            setIsTierMenuOpen(false);
                           }}
                           className={cn(
-                            "flex items-start gap-3 w-full px-3 py-2.5 rounded-md hover:bg-accent text-left transition-colors",
-                            isSelected && "bg-accent"
+                            "flex flex-col gap-1.5 w-full px-3 py-3 rounded-lg hover:bg-accent text-left transition-colors border",
+                            isSelected && "bg-accent border-primary"
                           )}
+                          style={{ borderColor: isSelected ? config.color : undefined }}
                         >
-                          <Image src={option.image} alt={option.name} width={16} height={16} className="size-4 mt-0.5 flex-shrink-0" unoptimized />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm">{option.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {option.description}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <TierIconComponent className="size-4" style={{ color: config.color }} />
+                              <span className="font-semibold text-sm">{config.emoji} {config.name}</span>
                             </div>
+                            <span 
+                              className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                              style={{ 
+                                backgroundColor: `${config.color}20`,
+                                color: config.color 
+                              }}
+                            >
+                              {multiplier < 1 ? `${Math.round(1/multiplier)}x gens` : multiplier === 1 ? "1x" : `${multiplier}x cost`}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {config.description}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {config.features.map((feature, idx) => (
+                              <span 
+                                key={idx}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                              >
+                                {feature}
+                              </span>
+                            ))}
                           </div>
                         </button>
                       );
@@ -381,6 +418,7 @@ export const ProjectForm = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+
               <div className="text-[10px] text-muted-foreground font-mono">
                 <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
                   <span>&#8984;</span>Enter

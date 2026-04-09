@@ -46,18 +46,19 @@ export const createWithMessage = action({
     }
     const userId = identity.subject;
 
-    // Check if model is free - if so, skip credit check
+    // Check if model/tier is free - if so, skip credit check
     const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Check and consume credit first (only for non-free models)
+    // Check and consume credit with tier multiplier support (only for non-free models)
     if (!isFreeModel) {
-      const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
-      if (creditResult.creditsRemaining <= 0) {
-        throw new Error("You have run out of credits");
+      const creditResult = await ctx.runMutation(api.usage.checkAndConsumeCreditWithTier, { 
+        userId,
+        tierOrModel: args.model ?? "pro", // Default to pro tier
+      });
+      
+      if (!creditResult.success) {
+        throw new Error(creditResult.message || "You have run out of credits");
       }
-
-      // Consume the credit
-      await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
     }
 
     // Generate a random project name (mimicking generateSlug from random-word-slugs)
@@ -120,18 +121,19 @@ export const createWithMessageAndAttachments = action({
     }
     const userId = identity.subject;
 
-    // Check if model is free - if so, skip credit check
+    // Check if model/tier is free - if so, skip credit check
     const isFreeModel = args.model?.endsWith(":free") ?? false;
 
-    // Check and consume credit first (only for non-free models)
+    // Check and consume credit with tier multiplier support (only for non-free models)
     if (!isFreeModel) {
-      const creditResult = await ctx.runQuery(api.usage.getUsageForUser, { userId });
-      if (creditResult.creditsRemaining <= 0) {
-        throw new Error("You have run out of credits");
+      const creditResult = await ctx.runMutation(api.usage.checkAndConsumeCreditWithTier, { 
+        userId,
+        tierOrModel: args.model ?? "pro", // Default to pro tier
+      });
+      
+      if (!creditResult.success) {
+        throw new Error(creditResult.message || "You have run out of credits");
       }
-
-      // Consume the credit
-      await ctx.runMutation(api.usage.checkAndConsumeCreditForUser, { userId });
     }
 
     // Generate a random project name (mimicking generateSlug from random-word-slugs)
