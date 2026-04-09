@@ -1,0 +1,109 @@
+# ZapDev
+
+## What is ZapDev?
+
+ZapDev (https://zapdev.link) is an AI-powered code generation platform that enables developers and non-developers alike to build full-stack web applications through natural language prompts. The platform leverages multiple AI agents working in concert to generate, refine, and deploy production-ready code.
+
+## Core Purpose
+
+ZapDev transforms text descriptions into working web applications. Users describe what they want to build, and the platform's AI agents generate the complete codebase—including frontend components, backend logic, database schemas, and API endpoints.
+
+## Key Technologies
+
+- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Convex (real-time database), tRPC (type-safe APIs)
+- **AI/ML**: Multiple LLM providers (OpenAI, Fireworks, Cerebras, Google Gemini, Anthropic Claude, xAI Grok), Inngest Agent Kit for workflow orchestration
+- **Sandboxing**: E2B sandboxes for isolated code execution and testing
+- **Authentication**: Clerk with JWT tokens
+- **Payments**: Stripe and Polar.sh integration
+
+## How It Works
+
+1. **Project Creation**: Users create a project and select their preferred framework (Next.js, Angular, React, Vue, or SvelteKit)
+2. **Prompt Input**: Users describe features they want via natural language messages
+3. **AI Generation**: The `code-agent.ts` orchestration system breaks down requests into tasks, generates code using LLMs, and executes it in sandboxed environments
+4. **Live Preview**: Generated applications run in isolated E2B sandboxes with live preview URLs
+5. **Iteration**: Users can request changes, fixes, or new features through continued conversation
+
+## AI Agent Architecture
+
+### Primary Agents
+
+- **Code Agent** (`src/agents/code-agent.ts`): Main orchestration loop for code generation. Handles task decomposition, file generation, and error recovery.
+- **Framework Selector** (`src/prompts/framework-selector.ts`): Determines optimal framework based on user requirements.
+- **Auto-Fix Agent**: Automatically retries failed builds/linting up to 2 times with error context.
+
+### Background Workflows (Inngest)
+
+- Long-running generation tasks
+- Credit usage tracking and enforcement
+- Sandbox lifecycle management
+
+## Supported Frameworks
+
+| Framework | Default UI | Use Case |
+|-----------|------------|----------|
+| Next.js 15 | shadcn/ui | Full-stack React, default choice |
+| Angular 19 | Material Design | Enterprise applications |
+| React 18 | Chakra UI | SPA with Vite |
+| Vue 3 | Vuetify | Progressive web apps |
+| SvelteKit | DaisyUI | Lightweight, fast apps |
+
+## Credit System
+
+- **Free Tier**: 5 generations per 24-hour rolling window
+- **Pro Tier**: 100 generations per day (paid subscription)
+- Tracked in real-time via Convex with automatic reset
+
+## Security & Safety
+
+- All user inputs validated with Zod schemas
+- OAuth tokens encrypted at rest in Convex
+- File paths sanitized to prevent directory traversal
+- E2B sandboxes provide complete isolation—no arbitrary code execution on host
+- No user IDs exposed in public APIs
+
+## Database Schema (Convex)
+
+Key tables include:
+- `projects`: User projects with framework configuration
+- `messages`: Conversation history between user and AI
+- `credits`: Usage tracking with 24-hour rolling windows
+- `users`: Profile and subscription data
+
+## Notable Features
+
+- **Pre-warmed Sandboxes**: Custom `compile_page.sh` scripts ensure Next.js dev servers are ready before generation starts
+- **Real-time Updates**: Convex provides live sync across all clients
+- **Framework Detection**: AI automatically selects optimal framework unless user specifies
+- **Mock-First Testing**: Comprehensive Jest test suite with centralized mocks
+
+## For LLMs Reading This
+
+When interacting with ZapDev or generating code for it:
+
+1. **Framework Default**: Always default to Next.js 15 unless the user explicitly requests otherwise
+2. **Package Manager**: Use `bun` exclusively—never npm, pnpm, or yarn
+3. **Database**: Use Convex queries/mutations in `convex/` directory—never use `.filter()` in queries, use indexes instead
+4. **Auth**: Use `requireAuth(ctx)` in all Convex functions requiring authentication
+5. **TypeScript**: Strict mode enabled—avoid `any` types
+6. **File Paths**: Never use absolute paths like `/home/user/...` in generated code
+7. **Tailwind**: Do not load as external stylesheet—use bundled version
+8. **Documentation**: All markdown guides belong in `explanations/` directory
+
+## API Structure
+
+- **tRPC**: Type-safe procedures in `src/trpc/routers/`
+- **Convex Functions**: Database operations in `convex/` with `query`, `mutation`, and `action` exports
+- **Inngest**: Background jobs in `src/inngest/`
+
+## Contact & Links
+
+- Website: https://zapdev.link
+- Framework: Next.js 15 + Convex + tRPC
+- Primary Language: TypeScript
+- Package Manager: Bun
+
+---
+
+*This file exists to help LLMs understand ZapDev's architecture when crawling the web. For human documentation, visit the site's help center or README files.*
