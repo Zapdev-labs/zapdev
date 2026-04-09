@@ -408,11 +408,14 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
     const hasSummary = Boolean(result.state.data.summary);
     const isError = !hasSummary && fileCount === 0;
 
-    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${result.output?.length || 0}, isError=${isError}`);
+    const results = result.state.results;
+    const lastResult = results.length > 0 ? results[results.length - 1] : null;
+    const output = lastResult?.output || [];
+    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${results.length}, isError=${isError}`);
     
     // Log the last few messages for debugging
-    if (isError && result.output && result.output.length > 0) {
-      const lastMsg = result.output[result.output.length - 1];
+    if (isError && output.length > 0) {
+      const lastMsg = output[output.length - 1];
       console.error("[CODING] Last message type:", lastMsg?.type);
       if (lastMsg?.type === 'text') {
         console.error("[CODING] Last message content preview:", (lastMsg as any).content?.substring(0, 500));
