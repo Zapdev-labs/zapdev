@@ -387,19 +387,15 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       agents: [codeAgent],
       maxIter,
       defaultState: state,
-      router: async ({ network, iteration }) => {
+      router: async ({ network }) => {
         const hasSummary = Boolean(network.state.data.summary);
         const fileCount = Object.keys(network.state.data.files || {}).length;
-        
+
         // Stop if we have a summary (files should already be created by now)
         if (hasSummary) return;
-        
-        // If we're near max iterations and have no files, force a final attempt
-        if (iteration >= maxIter - 2 && fileCount === 0) {
-          console.warn(`[ROUTER] Near max iterations (${iteration}/${maxIter}) with no files - forcing continue`);
-        }
-        
+
         // Continue running the code agent
+        // Note: maxIter is enforced by the network automatically
         return codeAgent;
       },
     });
