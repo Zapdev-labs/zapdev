@@ -304,7 +304,7 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       name: "code-agent",
       description: "An expert coding agent",
       system: PROMPT,
-      tool_choice: "auto",
+      tool_choice: "required",
       model: openai({
         model: selectedModel,
         baseUrl: "https://openrouter.ai/api/v1",
