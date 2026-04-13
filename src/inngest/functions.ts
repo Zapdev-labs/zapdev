@@ -368,14 +368,8 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
           
           if (lastAssistantMessageText && network) {
             if (lastAssistantMessageText.includes("<task_summary>")) {
-              // Only accept summary if files were actually created
-              if (fileCount > 0) {
-                network.state.data.summary = lastAssistantMessageText;
-                console.log("[CODING] Task summary captured");
-              } else {
-                console.warn("[CODING] Agent tried to submit summary but NO FILES created yet - rejecting");
-                // Don't set summary - let the router continue the agent
-              }
+              network.state.data.summary = lastAssistantMessageText;
+              console.log("[CODING] Task summary captured");
             }
           }
           return result;
@@ -411,34 +405,37 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
     // ── Resolve summary & error state ────────────────────────────────────────
     const fileCount = Object.keys(result.state.data.files || {}).length;
     const hasSummary = Boolean(result.state.data.summary);
-    const isError = !hasSummary && fileCount === 0;
 
     const results = result.state.results;
     const lastResult = results.length > 0 ? results[results.length - 1] : null;
     const output = lastResult?.output || [];
-    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${results.length}, isError=${isError}`);
+    console.log(`[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${results.length}`);
     
-    // Log the last few messages for debugging
-    if (isError && output.length > 0) {
-      const lastMsg = output[output.length - 1];
-      console.error("[CODING] Last message type:", lastMsg?.type);
-      if (lastMsg?.type === 'text') {
-        console.error("[CODING] Last message content preview:", (lastMsg as any).content?.substring(0, 500));
-      }
-    }
-    
-    // If agent hit maxIter without a summary but did write files, use fallback
+    // If no summary captured but we have files, create a fallback
     if (!result.state.data.summary && fileCount > 0) {
       result.state.data.summary = `<task_summary>Generated ${fileCount} file(s): ${Object.keys(result.state.data.files).join(", ")}</task_summary>`;
       console.log("[CODING] Created fallback summary for files");
     }
 
-    if (!hasSummary) console.error("[CODING] No <task_summary> produced — agent may have hit maxIter or build kept failing");
-    if (fileCount === 0) console.error("[CODING] No files written — agent did not call createOrUpdateFiles tool");
+    // If still no summary, try to extract from the last message
+    if (!result.state.data.summary && output.length > 0) {
+      const lastMsg = output[output.length - 1];
+      if (lastMsg?.type === 'text') {
+        const content = typeof (lastMsg as any).content === 'string' 
+          ? (lastMsg as any).content 
+          : JSON.stringify((lastMsg as any).content);
+        const summaryMatch = content?.match(/<task_summary>[\s\S]*?<\/task_summary>/);
+        if (summaryMatch) {
+          result.state.data.summary = summaryMatch[0];
+          console.log("[CODING] Extracted summary from last message");
+        }
+      }
+    }
 
-    const sandboxUrl = "__WEBCONTAINER_PREVIEW__";
-
-    if (isError) {
+    // Final check - if we still have no summary, it's an error
+    if (!result.state.data.summary) {
+      console.error("[CODING] No <task_summary> found in any response");
+      
       await step.run("save-error", async () => {
         const convex = getConvexClient();
         return await convex.mutation(api.messages.createForUser, {
@@ -450,65 +447,64 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
         });
       });
 
-      // Throw error to mark Inngest run as failed
-      throw new Error(
-        `Agent failed: no summary and no files written (hasSummary=${hasSummary}, fileCount=${fileCount})`
-      );
-    } else {
-      // Generate title + response from the summary
-      const fragmentTitleGenerator = createAgent({
-        name: "fragment-title-generator",
-        description: "A fragment title generator",
-        system: FRAGMENT_TITLE_PROMPT,
-        model: openai({
-          model: "anthropic/claude-haiku-4.5",
-          baseUrl: "https://openrouter.ai/api/v1",
-          apiKey: process.env.OPENROUTER_API_KEY,
-        }),
-      });
-
-      const responseGenerator = createAgent({
-        name: "response-generator",
-        description: "A response generator",
-        system: RESPONSE_PROMPT,
-        model: openai({
-          model: "anthropic/claude-haiku-4.5",
-          baseUrl: "https://openrouter.ai/api/v1",
-          apiKey: process.env.OPENROUTER_API_KEY,
-        }),
-      });
-
-      const [{ output: fragmentTitleOutput }, { output: responseOutput }] =
-        await Promise.all([
-          fragmentTitleGenerator.run(result.state.data.summary),
-          responseGenerator.run(result.state.data.summary),
-        ]);
-
-      await step.run("save-result", async () => {
-        const convex = getConvexClient();
-        const userId = event.data.userId as string;
-        const projectId = event.data.projectId as Id<"projects">;
-
-        const messageId = await convex.mutation(api.messages.createForUser, {
-          userId,
-          projectId,
-          content: parseAgentOutput(responseOutput),
-          role: "ASSISTANT",
-          type: "RESULT",
-        });
-
-        await convex.mutation(api.messages.createFragmentForUser, {
-          userId,
-          messageId: messageId as Id<"messages">,
-          sandboxUrl,
-          title: parseAgentOutput(fragmentTitleOutput),
-          files: result.state.data.files,
-          framework: "NEXTJS",
-        });
-
-        return messageId;
-      });
+      throw new Error(`Agent failed: no summary found after ${results.length} iterations`);
     }
+
+    const sandboxUrl = "__WEBCONTAINER_PREVIEW__";
+
+    // Success path - save the result
+    const fragmentTitleGenerator = createAgent({
+      name: "fragment-title-generator",
+      description: "A fragment title generator",
+      system: FRAGMENT_TITLE_PROMPT,
+      model: openai({
+        model: "anthropic/claude-haiku-4.5",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY,
+      }),
+    });
+
+    const responseGenerator = createAgent({
+      name: "response-generator",
+      description: "A response generator",
+      system: RESPONSE_PROMPT,
+      model: openai({
+        model: "anthropic/claude-haiku-4.5",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY,
+      }),
+    });
+
+    const [{ output: fragmentTitleOutput }, { output: responseOutput }] =
+      await Promise.all([
+        fragmentTitleGenerator.run(result.state.data.summary),
+        responseGenerator.run(result.state.data.summary),
+      ]);
+
+    await step.run("save-result", async () => {
+      const convex = getConvexClient();
+      const userId = event.data.userId as string;
+      const projectId = event.data.projectId as Id<"projects">;
+
+      const messageId = await convex.mutation(api.messages.createForUser, {
+        userId,
+        projectId,
+        content: parseAgentOutput(responseOutput),
+        role: "ASSISTANT",
+        type: "RESULT",
+      });
+
+      await convex.mutation(api.messages.createFragmentForUser, {
+        userId,
+        messageId: messageId as Id<"messages">,
+        sandboxUrl,
+        title: parseAgentOutput(fragmentTitleOutput),
+        files: result.state.data.files,
+        framework: "NEXTJS",
+      });
+
+      return messageId;
+    });
 
     return {
       url: sandboxUrl,
