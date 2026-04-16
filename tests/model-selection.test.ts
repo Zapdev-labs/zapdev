@@ -2,9 +2,9 @@ import { selectModelForTask, MODEL_CONFIGS } from '../src/agents/types';
 import type { Framework } from '../src/agents/types';
 
 describe('Model Selection Logic', () => {
-  const defaultModel = 'google/gemini-3.1-pro-preview' as const;
+  const defaultModel = 'moonshotai/kimi-k2.5:nitro' as const;
 
-  it('defaults to Gemini 3.1 Pro when no special indicators exist', () => {
+  it('defaults to Kimi K2.5 Nitro when no special indicators exist', () => {
     const prompt = 'Build a marketing page with testimonials.';
     const result = selectModelForTask(prompt);
 
@@ -19,28 +19,28 @@ describe('Model Selection Logic', () => {
     expect(result).toBe('moonshotai/kimi-k2.5');
   });
 
-  it('prefers Gemini 3.1 Pro for speed-focused prompts', () => {
+  it('defaults to Kimi K2.5 Nitro for speed-focused prompts', () => {
     const prompt = 'Need a quick prototype landing page mockup.';
     const result = selectModelForTask(prompt);
 
-    expect(result).toBe('google/gemini-3.1-pro-preview');
+    expect(result).toBe('moonshotai/kimi-k2.5:nitro');
   });
 
-  it('uses Gemini 3.1 Pro when complexity indicators are present', () => {
+  it('uses Kimi K2.5 Nitro when complexity indicators are present', () => {
     const prompt = 'Need a quick enterprise architecture overview with detailed security notes.';
     const result = selectModelForTask(prompt);
 
     expect(result).toBe(defaultModel);
   });
 
-  it('defaults to Gemini 3.1 Pro for very long prompts', () => {
+  it('defaults to Kimi K2.5 Nitro for very long prompts', () => {
     const prompt = 'refactor '.repeat(100) + 'a'.repeat(1100);
     const result = selectModelForTask(prompt);
 
     expect(result).toBe(defaultModel);
   });
 
-  it('defaults to Gemini 3.1 Pro for Angular enterprise work', () => {
+  it('defaults to Kimi K2.5 Nitro for Angular enterprise work', () => {
     const prompt = 'Design an enterprise dashboard with advanced reporting.';
     const angularFramework: Framework = 'angular';
     const result = selectModelForTask(prompt, angularFramework);

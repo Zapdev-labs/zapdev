@@ -27,7 +27,6 @@ export const MODEL_MULTIPLIERS: Record<string, number> = {
   "z-ai/glm-5.1": 0.5,
   
   // Pro tier models
-  "google/gemini-3.1-pro-preview": 1,
   "moonshotai/kimi-k2.5": 1,
   "moonshotai/kimi-k2.5:nitro": 1,
   "anthropic/claude-haiku-4.5": 1,

@@ -125,20 +125,6 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   },
 
   // PRO TIER MODELS
-  "google/gemini-3.1-pro-preview": {
-    name: "Gemini 3.1 Pro Preview",
-    provider: "google",
-    description: "Google's Gemini 3.1 Pro Preview — default for pro tier",
-    temperature: 0.7,
-    supportsFrequencyPenalty: true,
-    frequencyPenalty: 0.5,
-    supportsSubagents: false,
-    isSpeedOptimized: false,
-    maxTokens: undefined,
-    isFree: false,
-    tier: "pro",
-    isDefaultForTier: true,
-  },
   "moonshotai/kimi-k2.5": {
     name: "Kimi K2.5",
     provider: "moonshot",
@@ -156,7 +142,7 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   "moonshotai/kimi-k2.5:nitro": {
     name: "Kimi K2.5 Nitro",
     provider: "moonshot",
-    description: "Fast Kimi K2.5 with nitro routing for speed-optimized inference",
+    description: "Fast Kimi K2.5 with nitro routing — default for pro tier",
     temperature: 0.7,
     supportsFrequencyPenalty: true,
     frequencyPenalty: 0.5,
@@ -165,7 +151,7 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
     maxTokens: undefined,
     isFree: false,
     tier: "pro",
-    isDefaultForTier: false,
+    isDefaultForTier: true,
   },
   "anthropic/claude-haiku-4.5": {
     name: "Claude Haiku 4.5",
@@ -383,19 +369,14 @@ export function selectModelForTask(
 ): keyof typeof MODEL_CONFIGS {
   const lowercasePrompt = prompt.toLowerCase();
 
-  const defaultModel: keyof typeof MODEL_CONFIGS = "google/gemini-3.1-pro-preview";
+  const defaultModel: keyof typeof MODEL_CONFIGS = "moonshotai/kimi-k2.5:nitro";
 
   const userExplicitlyRequestsGPT = lowercasePrompt.includes("gpt-5") || lowercasePrompt.includes("gpt5");
-  const userExplicitlyRequestsGemini = lowercasePrompt.includes("gemini");
   const userExplicitlyRequestsKimi = lowercasePrompt.includes("kimi");
   const userExplicitlyRequestsClaude = lowercasePrompt.includes("claude");
 
   if (userExplicitlyRequestsGPT) {
     return "openai/gpt-5.1-codex";
-  }
-
-  if (userExplicitlyRequestsGemini) {
-    return "google/gemini-3.1-pro-preview";
   }
 
   if (userExplicitlyRequestsKimi) {
