@@ -20,6 +20,7 @@ import type * as projects from "../projects.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as usage from "../usage.js";
+import type * as webcontainerFiles from "../webcontainerFiles.js";
 import type * as webhooks from "../webhooks.js";
 
 import type {
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   rateLimit: typeof rateLimit;
   subscriptions: typeof subscriptions;
   usage: typeof usage;
+  webcontainerFiles: typeof webcontainerFiles;
   webhooks: typeof webhooks;
 }>;
 

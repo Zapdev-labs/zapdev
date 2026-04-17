@@ -1,0 +1,12 @@
+{
+  "context_servers": {
+    "executor": {
+      "source": "custom",
+      "command": "executor",
+      "args": [
+        "mcp"
+      ],
+      "env": {}
+    }
+  }
+}

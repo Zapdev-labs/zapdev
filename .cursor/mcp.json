@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "executor": {
+      "command": "executor",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
