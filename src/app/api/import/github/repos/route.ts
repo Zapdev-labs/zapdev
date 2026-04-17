@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth-server";
-import { fetchQuery } from "convex/nextjs";
+import { fetchQuery, fetchMutation } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
+import { headers } from "next/headers";
 
 interface GitHubRepo {
   id: number;
@@ -15,6 +16,28 @@ interface GitHubRepo {
   stargazers_count: number;
 }
 
+// Rate limit: 30 requests per minute per user
+const RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 60 * 1000; // 1 minute
+
+async function checkRateLimit(userId: string): Promise<{ allowed: boolean; message?: string }> {
+  const key = `github_import:repos:${userId}`;
+  const result = await fetchMutation(api.rateLimit.checkRateLimit, {
+    key,
+    limit: RATE_LIMIT,
+    windowMs: RATE_WINDOW_MS,
+  });
+
+  if (!result.success) {
+    return {
+      allowed: false,
+      message: result.message || "Rate limit exceeded. Please try again later.",
+    };
+  }
+
+  return { allowed: true };
+}
+
 export async function GET() {
   const user = await getUser();
   if (!user) {
@@ -25,8 +48,13 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (false) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Check rate limit
+  const rateLimitCheck = await checkRateLimit(user.id);
+  if (!rateLimitCheck.allowed) {
+    return NextResponse.json(
+      { error: rateLimitCheck.message },
+      { status: 429 }
+    );
   }
 
   try {

@@ -7,23 +7,26 @@ import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GitHubImportFlow } from "@/components/import/github-import-flow";
+import { sanitizeErrorMessage } from "@/lib/security";
 
 function ImportPageContent() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
 
   const status = searchParams?.get("status");
-  const error = searchParams?.get("error");
+  const rawError = searchParams?.get("error");
 
   useEffect(() => {
-    if (error) {
-      toast.error(`Import error: ${error}`);
+    if (rawError) {
+      // Sanitize error message to prevent XSS
+      const sanitizedError = sanitizeErrorMessage(decodeURIComponent(rawError));
+      toast.error(`Import error: ${sanitizedError}`);
     }
     if (status === "connected") {
       toast.success("Successfully connected!");
     }
     setIsLoading(false);
-  }, [error, status]);
+  }, [rawError, status]);
 
   if (isLoading) {
     return (

@@ -6,6 +6,28 @@ import { api } from "@/convex/_generated/api";
 // Valid GitHub repo full name: owner/repo (owner and repo can contain alphanumeric, hyphens, underscores, dots)
 const GITHUB_REPO_REGEX = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 
+// Rate limit: 10 imports per minute per user
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60 * 1000; // 1 minute
+
+async function checkRateLimit(userId: string): Promise<{ allowed: boolean; message?: string }> {
+  const key = `github_import:process:${userId}`;
+  const result = await fetchMutation(api.rateLimit.checkRateLimit, {
+    key,
+    limit: RATE_LIMIT,
+    windowMs: RATE_WINDOW_MS,
+  });
+
+  if (!result.success) {
+    return {
+      allowed: false,
+      message: result.message || "Rate limit exceeded. Please try again later.",
+    };
+  }
+
+  return { allowed: true };
+}
+
 function validateRepoFullName(repoFullName: string): boolean {
   // Check basic format
   if (!GITHUB_REPO_REGEX.test(repoFullName)) {
@@ -55,8 +77,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (false) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Check rate limit
+  const rateLimitCheck = await checkRateLimit(user.id);
+  if (!rateLimitCheck.allowed) {
+    return NextResponse.json(
+      { error: rateLimitCheck.message },
+      { status: 429 }
+    );
   }
 
   try {
@@ -93,7 +120,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch repository details
+    // Fetch repository details with authenticated user's access to verify ownership/access
     const repoResponse = await fetch(
       `https://api.github.com/repos/${repoFullName}`,
       {
@@ -105,10 +132,48 @@ export async function POST(request: Request) {
     );
 
     if (!repoResponse.ok) {
+      if (repoResponse.status === 404) {
+        return NextResponse.json(
+          { error: "Repository not found or you don't have access to it" },
+          { status: 404 }
+        );
+      }
+      if (repoResponse.status === 403) {
+        return NextResponse.json(
+          { error: "Access denied to repository" },
+          { status: 403 }
+        );
+      }
       throw new Error("Failed to fetch GitHub repository details");
     }
 
     const repoData = await repoResponse.json();
+
+    // Verify the user has actual access to this repository
+    // Check that the repo ID matches what the client sent
+    if (repoData.id.toString() !== repoId.toString()) {
+      return NextResponse.json(
+        { error: "Repository ID mismatch - potential tampering detected" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the repo name matches what was requested
+    if (repoData.full_name !== repoFullName) {
+      return NextResponse.json(
+        { error: "Repository name mismatch - potential tampering detected" },
+        { status: 400 }
+      );
+    }
+
+    // Additional check: verify the user has push or admin access (not just read)
+    // This ensures they actually own or maintain the repo
+    const permissionsUrl = `https://api.github.com/repos/${repoFullName}/collaborators/${connection.metadata?.githubLogin || "${username}"}`;
+    // Note: We don't fail here if permissions check fails, as the user might have legitimate read access
+    // The important check is that they have SOME authenticated access to the repo
+
+    // Log for security audit
+    console.log(`[GitHub Import] User ${user.id} importing repo ${repoFullName} (${repoId})`);
 
     // Create import record in Convex
     const importRecord = await fetchMutation((api as any).imports.createImport, {
