@@ -395,6 +395,7 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
     const contextSummary =
       previousMessages
         .slice(-3)
+        .filter((m): m is Extract<typeof m, { type: "text" }> => m.type === "text")
         .map((m) => {
           const text =
             typeof m.content === "string"
