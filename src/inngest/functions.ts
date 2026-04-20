@@ -42,7 +42,7 @@ import {
   runPostReview,
   appendReviewNotes,
   type AgentPlan,
-} from "@/agents/luminaweb";
+} from "@/agents/zapdev";
 
 import { inngest } from "./client";
 import {
@@ -405,7 +405,7 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         })
         .join("\n") || "No prior conversation.";
 
-    const preflight = await step.run("luminaweb-preflight", () =>
+    const preflight = await step.run("zapdev-preflight", () =>
       runPreflight({
         userMessage: userPrompt,
         userId: event.data.userId as string,
@@ -460,7 +460,7 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       codeSystem: enrichedSystemPrompt,
     });
 
-    const review = await step.run("luminaweb-review", () =>
+    const review = await step.run("zapdev-review", () =>
       runPostReview({
         plan,
         userMessage: workingMessage,

@@ -1,6 +1,6 @@
-import { isUIGenerationRequest } from "@/agents/luminaweb/prompts";
+import { isUIGenerationRequest } from "@/agents/zapdev/prompts";
 
-describe("luminaweb/prompts.isUIGenerationRequest", () => {
+describe("zapdev/prompts.isUIGenerationRequest", () => {
   it("detects UI-flavoured prompts", () => {
     expect(isUIGenerationRequest("Build me a landing page")).toBe(true);
     expect(isUIGenerationRequest("Create a dashboard with tailwind")).toBe(true);

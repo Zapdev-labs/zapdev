@@ -1,7 +1,7 @@
-import { appendReviewNotes } from "@/agents/luminaweb/orchestrator";
-import type { ReviewArtifact } from "@/agents/luminaweb/types";
+import { appendReviewNotes } from "@/agents/zapdev/orchestrator";
+import type { ReviewArtifact } from "@/agents/zapdev/types";
 
-describe("luminaweb/orchestrator.appendReviewNotes", () => {
+describe("zapdev/orchestrator.appendReviewNotes", () => {
   it("returns the summary untouched when review is null", () => {
     expect(appendReviewNotes("summary", null)).toBe("summary");
   });

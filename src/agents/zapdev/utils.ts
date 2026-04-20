@@ -1,20 +1,20 @@
-const MARKDOWN_JSON_REGEX = /```(?:json)?\s*([\s\S]*?)```/g;
+const MARKDOWN_CODE_FENCE_REGEX = /```[ \t]*([^\r\n`]*)\r?\n([\s\S]*?)```/g;
 
 export function extractJSONFromMarkdown(text: string): string {
-  const matches = Array.from(text.matchAll(MARKDOWN_JSON_REGEX));
+  const matches = Array.from(text.matchAll(MARKDOWN_CODE_FENCE_REGEX)).map(
+    (m) => ({
+      language: m[1]?.trim().toLowerCase() ?? "",
+      content: m[2]?.trim() ?? "",
+    })
+  );
 
-  for (const match of matches) {
-    const content = match[1]?.trim();
+  for (const { content } of matches) {
     if (content && (content.startsWith("{") || content.startsWith("["))) {
       return content;
     }
   }
 
-  if (matches.length > 0) {
-    return matches[0][1]?.trim() ?? text.trim();
-  }
-
-  return text.trim();
+  return matches[0]?.content ?? text.trim();
 }
 
 export function safeParseAIJSON<T>(text: string): T | null {

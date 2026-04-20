@@ -2,9 +2,9 @@ import {
   extractJSONFromMarkdown,
   safeParseAIJSON,
   truncate,
-} from "@/agents/luminaweb/utils";
+} from "@/agents/zapdev/utils";
 
-describe("luminaweb/utils", () => {
+describe("zapdev/utils", () => {
   describe("extractJSONFromMarkdown", () => {
     it("extracts JSON from a json code fence", () => {
       const input = 'prelude\n```json\n{"complexity":"simple"}\n```\ntrailing';

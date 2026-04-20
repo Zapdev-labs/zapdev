@@ -10,9 +10,9 @@ jest.mock("@/agents/client", () => ({
   openrouter: (modelId: string) => ({ modelId }),
 }));
 
-import { runPlanner, runEnhancer, FALLBACK_PLAN } from "@/agents/luminaweb/planner";
+import { runPlanner, runEnhancer, FALLBACK_PLAN } from "@/agents/zapdev/planner";
 
-describe("luminaweb/planner", () => {
+describe("zapdev/planner", () => {
   beforeEach(() => {
     mockGenerateText.mockReset();
   });

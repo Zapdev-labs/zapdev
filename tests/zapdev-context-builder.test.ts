@@ -1,6 +1,6 @@
-import { buildEnrichedSystemPrompt } from "@/agents/luminaweb/context-builder";
-import { FALLBACK_PLAN } from "@/agents/luminaweb/planner";
-import type { AgentPlan, ResearchArtifact } from "@/agents/luminaweb/types";
+import { buildEnrichedSystemPrompt } from "@/agents/zapdev/context-builder";
+import { FALLBACK_PLAN } from "@/agents/zapdev/planner";
+import type { AgentPlan, ResearchArtifact } from "@/agents/zapdev/types";
 
 const BASE = "BASE_SYSTEM";
 

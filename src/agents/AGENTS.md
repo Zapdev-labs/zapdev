@@ -5,7 +5,7 @@
 
 ## OVERVIEW
 
-Luminaweb-style agent orchestration for code generation, executed through
+Zapdev agent orchestration for code generation, executed through
 Inngest. The pipeline is **enhance → plan → (repo+exa research) → code → review**.
 Execution happens inside E2B sandboxes.
 
@@ -13,14 +13,14 @@ Execution happens inside E2B sandboxes.
 
 | Path | Role |
 |------|------|
-| `luminaweb/orchestrator.ts` | **Preflight + post-review.** Composes the whole pipeline. |
-| `luminaweb/planner.ts` | **Plan + enhancer.** JSON plan (kimi-k2.5:nitro) + UI prompt enhancer. |
-| `luminaweb/workers/repo-research.ts` | **Codebase research.** Summarises project files (grok-4.1-fast). |
-| `luminaweb/workers/exa-research.ts` | **External research.** Exa searches + synthesis (grok-4.1-fast). |
-| `luminaweb/workers/review.ts` | **Post-impl review.** Flags issues on generated files (claude-haiku-4.5). |
-| `luminaweb/context-builder.ts` | **Prompt layering.** Injects plan + research into the system prompt. |
-| `luminaweb/prompts.ts` | **Prompt templates** for planner/research/review/enhance. |
-| `luminaweb/utils.ts` | **JSON extraction** helpers shared across workers. |
+| `zapdev/orchestrator.ts` | **Preflight + post-review.** Composes the whole pipeline. |
+| `zapdev/planner.ts` | **Plan + enhancer.** JSON plan (kimi-k2.5:nitro) + UI prompt enhancer. |
+| `zapdev/workers/repo-research.ts` | **Codebase research.** Summarises project files (grok-4.1-fast). |
+| `zapdev/workers/exa-research.ts` | **External research.** Exa searches + synthesis (grok-4.1-fast). |
+| `zapdev/workers/review.ts` | **Post-impl review.** Flags issues on generated files (claude-haiku-4.5). |
+| `zapdev/context-builder.ts` | **Prompt layering.** Injects plan + research into the system prompt. |
+| `zapdev/prompts.ts` | **Prompt templates** for planner/research/review/enhance. |
+| `zapdev/utils.ts` | **JSON extraction** helpers shared across workers. |
 | `client.ts` | **LLM Client.** OpenRouter (+ Cerebras/Fireworks) configuration. |
 | `sandbox-utils.ts` | **E2B Bridge.** Sandbox lifecycle, batch file writes, dev server ping. |
 | `types.ts` | **Configuration.** Framework mappings, model tiers, user-facing model IDs. |
@@ -33,7 +33,7 @@ Execution happens inside E2B sandboxes.
   only fires when `needsResearch=true`. Review only fires when
   `complexity !== "simple"`.
 - **Plan schema**: Workers consume the `AgentPlan` shape from
-  `luminaweb/types.ts`. When a worker returns JSON, it must match the
+  `zapdev/types.ts`. When a worker returns JSON, it must match the
   artifact type in the same file.
 - **Prompt enrichment**: Always produce the final system prompt through
   `buildEnrichedSystemPrompt`. Never concatenate plan / research manually.
@@ -49,4 +49,4 @@ Execution happens inside E2B sandboxes.
 - **NEVER** add a new subagent without giving it an entry in `prompts.ts`
   and a plain artifact type in `types.ts` — parsing is the contract.
 - **NEVER** reintroduce the deprecated `code-agent.ts` / `subagent.ts` /
-  `brave-tools.ts` modules; they were removed with the luminaweb port.
+  `brave-tools.ts` modules; they were removed with the zapdev port.

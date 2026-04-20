@@ -1,3 +1,17 @@
+/** Map from file path to file contents. */
+export type FileMap = Record<string, string>;
+
+export interface RelevantFile {
+  name: string;
+  snippet: string;
+}
+
+export interface Citation {
+  url: string;
+  title: string;
+  content: string;
+}
+
 export interface AgentPlan {
   needsResearch: boolean;
   searchQueries: string[];
@@ -11,8 +25,8 @@ export interface AgentPlan {
 
 export interface ResearchArtifact {
   summary: string;
-  relevantFiles?: { name: string; snippet: string }[];
-  citations?: { url: string; title: string; content: string }[];
+  relevantFiles?: RelevantFile[];
+  citations?: Citation[];
 }
 
 export interface ReviewArtifact {
@@ -37,5 +51,5 @@ export interface ExaResearchInput extends WorkerInput {
 
 export interface ReviewInput extends WorkerInput {
   implementationSummary: string;
-  files: Record<string, string>;
+  files: FileMap;
 }
