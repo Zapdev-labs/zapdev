@@ -5,8 +5,8 @@ import { PLAN_STEP_PROMPT, ENHANCE_SYSTEM_PROMPT, isUIGenerationRequest } from "
 import { safeParseAIJSON } from "./utils";
 import type { AgentPlan } from "./types";
 
-const PLANNER_MODEL = "moonshotai/kimi-k2.5:nitro";
-const ENHANCE_MODEL = "moonshotai/kimi-k2.5:nitro";
+const PLANNER_MODEL = "moonshotai/kimi-k2.6:nitro";
+const ENHANCE_MODEL = "moonshotai/kimi-k2.6:nitro";
 
 export const FALLBACK_PLAN: AgentPlan = {
   needsResearch: false,

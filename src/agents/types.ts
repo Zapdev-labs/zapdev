@@ -127,8 +127,8 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   },
 
   // PRO TIER MODELS
-  "moonshotai/kimi-k2.5": {
-    name: "Kimi K2.5",
+  "moonshotai/kimi-k2.6": {
+    name: "Kimi K2.6",
     provider: "moonshot",
     description: "Moonshot's efficient model for pro tier tasks",
     temperature: 0.7,
@@ -141,10 +141,10 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
     tier: "pro",
     isDefaultForTier: false,
   },
-  "moonshotai/kimi-k2.5:nitro": {
-    name: "Kimi K2.5 Nitro",
+  "moonshotai/kimi-k2.6:nitro": {
+    name: "Kimi K2.6 Nitro",
     provider: "moonshot",
-    description: "Fast Kimi K2.5 with nitro routing — default for pro tier",
+    description: "Fast Kimi K2.6 with nitro routing — default for pro tier",
     temperature: 0.7,
     supportsFrequencyPenalty: true,
     frequencyPenalty: 0.5,
@@ -288,7 +288,7 @@ export function getDefaultModelForTier(tier: ModelTier): string {
     ([_, config]) => config.tier === tier && !config.isSubagentOnly
   );
   
-  return firstInTier?.[0] || "moonshotai/kimi-k2.5:nitro";
+  return firstInTier?.[0] || "moonshotai/kimi-k2.6:nitro";
 }
 
 /**
@@ -371,7 +371,7 @@ export function selectModelForTask(
 ): keyof typeof MODEL_CONFIGS {
   const lowercasePrompt = prompt.toLowerCase();
 
-  const defaultModel: keyof typeof MODEL_CONFIGS = "moonshotai/kimi-k2.5:nitro";
+  const defaultModel: keyof typeof MODEL_CONFIGS = "moonshotai/kimi-k2.6:nitro";
 
   const userExplicitlyRequestsGPT = lowercasePrompt.includes("gpt-5") || lowercasePrompt.includes("gpt5");
   const userExplicitlyRequestsKimi = lowercasePrompt.includes("kimi");
@@ -382,7 +382,7 @@ export function selectModelForTask(
   }
 
   if (userExplicitlyRequestsKimi) {
-    return "moonshotai/kimi-k2.5";
+    return "moonshotai/kimi-k2.6";
   }
 
   if (userExplicitlyRequestsClaude) {

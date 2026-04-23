@@ -14,7 +14,7 @@ Execution happens inside E2B sandboxes.
 | Path | Role |
 |------|------|
 | `zapdev/orchestrator.ts` | **Preflight + post-review.** Composes the whole pipeline. |
-| `zapdev/planner.ts` | **Plan + enhancer.** JSON plan (kimi-k2.5:nitro) + UI prompt enhancer. |
+| `zapdev/planner.ts` | **Plan + enhancer.** JSON plan (kimi-k2.6:nitro) + UI prompt enhancer. |
 | `zapdev/workers/repo-research.ts` | **Codebase research.** Summarises project files (grok-4.1-fast). |
 | `zapdev/workers/exa-research.ts` | **External research.** Exa searches + synthesis (grok-4.1-fast). |
 | `zapdev/workers/review.ts` | **Post-impl review.** Flags issues on generated files (claude-haiku-4.5). |
