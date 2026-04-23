@@ -2,9 +2,9 @@ import { selectModelForTask, MODEL_CONFIGS } from '../src/agents/types';
 import type { Framework } from '../src/agents/types';
 
 describe('Model Selection Logic', () => {
-  const defaultModel = 'moonshotai/kimi-k2.5:nitro' as const;
+  const defaultModel = 'moonshotai/kimi-k2.6:nitro' as const;
 
-  it('defaults to Kimi K2.5 Nitro when no special indicators exist', () => {
+  it('defaults to Kimi K2.6 Nitro when no special indicators exist', () => {
     const prompt = 'Build a marketing page with testimonials.';
     const result = selectModelForTask(prompt);
 
@@ -12,35 +12,35 @@ describe('Model Selection Logic', () => {
     expect(MODEL_CONFIGS[result]).toBeDefined();
   });
 
-  it('prefers Kimi K2.5 for coding-focused refinements when explicitly requested', () => {
+  it('prefers Kimi K2.6 for coding-focused refinements when explicitly requested', () => {
     const prompt = 'Use Kimi to refactor this component to improve readability.';
     const result = selectModelForTask(prompt);
 
-    expect(result).toBe('moonshotai/kimi-k2.5');
+    expect(result).toBe('moonshotai/kimi-k2.6');
   });
 
-  it('defaults to Kimi K2.5 Nitro for speed-focused prompts', () => {
+  it('defaults to Kimi K2.6 Nitro for speed-focused prompts', () => {
     const prompt = 'Need a quick prototype landing page mockup.';
     const result = selectModelForTask(prompt);
 
-    expect(result).toBe('moonshotai/kimi-k2.5:nitro');
+    expect(result).toBe('moonshotai/kimi-k2.6:nitro');
   });
 
-  it('uses Kimi K2.5 Nitro when complexity indicators are present', () => {
+  it('uses Kimi K2.6 Nitro when complexity indicators are present', () => {
     const prompt = 'Need a quick enterprise architecture overview with detailed security notes.';
     const result = selectModelForTask(prompt);
 
     expect(result).toBe(defaultModel);
   });
 
-  it('defaults to Kimi K2.5 Nitro for very long prompts', () => {
+  it('defaults to Kimi K2.6 Nitro for very long prompts', () => {
     const prompt = 'refactor '.repeat(100) + 'a'.repeat(1100);
     const result = selectModelForTask(prompt);
 
     expect(result).toBe(defaultModel);
   });
 
-  it('defaults to Kimi K2.5 Nitro for Angular enterprise work', () => {
+  it('defaults to Kimi K2.6 Nitro for Angular enterprise work', () => {
     const prompt = 'Design an enterprise dashboard with advanced reporting.';
     const angularFramework: Framework = 'angular';
     const result = selectModelForTask(prompt, angularFramework);
@@ -49,7 +49,7 @@ describe('Model Selection Logic', () => {
   });
 
   it('moonshot config has correct provider field', () => {
-    const moonshotConfig = MODEL_CONFIGS['moonshotai/kimi-k2.5'];
+    const moonshotConfig = MODEL_CONFIGS['moonshotai/kimi-k2.6'];
     expect(moonshotConfig).toBeDefined();
     expect(moonshotConfig.provider).toBe('moonshot');
   });
