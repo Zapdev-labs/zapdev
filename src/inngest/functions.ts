@@ -347,8 +347,8 @@ export const codeAgentFunction = inngest.createFunction(
       limit: 3,
       key: "event.data.userId",
     },
+    triggers: { event: "agent/code-agent-kit.run" },
   },
-  { event: "agent/code-agent-kit.run" },
   async ({ event, step }) => {
     const userPrompt = event.data.value as string;
 

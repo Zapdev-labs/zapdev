@@ -80,7 +80,7 @@
     "eslint-config-next": "16.2.1",
     "exa-js": "^2.8.0",
     "firecrawl": "^4.10.0",
-    "inngest": "^3.52.3",
+    "inngest": "4.2.4",
     "input-otp": "^1.4.2",
     "jest": "^30.2.0",
     "jszip": "^3.10.1",
