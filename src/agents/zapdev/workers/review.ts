@@ -13,12 +13,45 @@ const REVIEWABLE_EXTENSIONS = [
   ".ts", ".tsx", ".js", ".jsx", ".css", ".json", ".vue", ".svelte",
 ];
 
+const REVIEW_QUALITIES: ReviewArtifact["quality"][] = [
+  "good",
+  "needs_improvement",
+  "critical_issues",
+];
+const SENSITIVE_SEGMENTS = new Set(["node_modules", "vendor"]);
+const SENSITIVE_BASENAMES = new Set([
+  "env",
+  "credentials",
+  "credentials.json",
+  "id_rsa",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  "known_hosts",
+]);
+const SENSITIVE_SUFFIXES = [".env", ".key", ".pem", ".p12", ".pfx", ".crt", ".csr"];
+
+function isSensitivePath(path: string): boolean {
+  const segments = path.toLowerCase().split(/[/\\]/).filter(Boolean);
+  const basename = segments.at(-1) ?? "";
+
+  if (segments.some((segment) => segment.startsWith("."))) return true;
+  if (segments.some((segment) => SENSITIVE_SEGMENTS.has(segment))) return true;
+  if (SENSITIVE_BASENAMES.has(basename)) return true;
+  return SENSITIVE_SUFFIXES.some(
+    (suffix) => basename === suffix || basename.endsWith(suffix)
+  );
+}
+
+function isReviewQuality(value: unknown): value is ReviewArtifact["quality"] {
+  return REVIEW_QUALITIES.some((quality) => quality === value);
+}
+
 export async function runReview(input: ReviewInput): Promise<ReviewArtifact> {
   const { userMessage, implementationSummary, files } = input;
 
   const sourceEntries = Object.entries(files).filter(([name]) => {
-    const segments = name.split(/[/\\]/);
-    if (segments.some((s) => s.startsWith(".") || s === "node_modules")) return false;
+    if (isSensitivePath(name)) return false;
     return REVIEWABLE_EXTENSIONS.some((ext) => name.endsWith(ext));
   });
 
@@ -55,7 +88,7 @@ ${snippets || "(no files)"}`,
       return {
         issues: toStringArray(parsed.issues),
         suggestions: toStringArray(parsed.suggestions),
-        quality: parsed.quality,
+        quality: isReviewQuality(parsed.quality) ? parsed.quality : "needs_improvement",
       };
     }
 

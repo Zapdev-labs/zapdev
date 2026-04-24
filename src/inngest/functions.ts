@@ -408,8 +408,11 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
     const preflight = await step.run("zapdev-preflight", async () => {
       const convex = getConvexClient();
       const latestFilesDoc = await convex.query(
-        api.webcontainerFiles.getLatestFiles,
-        { projectId: event.data.projectId as Id<"projects"> }
+        api.webcontainerFiles.getLatestFilesForUser,
+        {
+          userId: event.data.userId as string,
+          projectId: event.data.projectId as Id<"projects">,
+        }
       );
       const projectFiles = latestFilesDoc?.files ?? {};
       return runPreflight({

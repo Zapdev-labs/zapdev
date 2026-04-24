@@ -8,6 +8,43 @@ import type { RepoResearchInput, ResearchArtifact } from "../types";
 const REPO_MODEL = "x-ai/grok-4.1-fast";
 const MAX_SNIPPET = 600;
 
+const SENSITIVE_SEGMENTS = new Set(["node_modules", "vendor"]);
+const SENSITIVE_BASENAMES = new Set([
+  "env",
+  "credentials",
+  "credentials.json",
+  "id_rsa",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  "known_hosts",
+]);
+const SENSITIVE_SUFFIXES = [".env", ".key", ".pem", ".p12", ".pfx", ".crt", ".csr"];
+
+function isSensitivePath(path: string): boolean {
+  const segments = path.toLowerCase().split(/[/\\]/).filter(Boolean);
+  const basename = segments.at(-1) ?? "";
+
+  if (segments.some((segment) => segment.startsWith("."))) return true;
+  if (segments.some((segment) => SENSITIVE_SEGMENTS.has(segment))) return true;
+  if (SENSITIVE_BASENAMES.has(basename)) return true;
+  return SENSITIVE_SUFFIXES.some(
+    (suffix) => basename === suffix || basename.endsWith(suffix)
+  );
+}
+
+function isRelevantFile(value: unknown): value is { name: string; snippet: string } {
+  if (value == null || typeof value !== "object") return false;
+  const candidate = value;
+
+  return (
+    "name" in candidate &&
+    "snippet" in candidate &&
+    typeof candidate.name === "string" &&
+    typeof candidate.snippet === "string"
+  );
+}
+
 /**
  * For zapdev, repo research operates over a seed of project files
  * (framework boilerplate or prior-session files). The caller provides
@@ -18,18 +55,9 @@ export async function runRepoResearch(
 ): Promise<ResearchArtifact> {
   const { userMessage, focusAreas, projectFiles = {} } = input;
 
-  const SENSITIVE_SEGMENTS = new Set([".git", "node_modules", "vendor"]);
-  const SENSITIVE_FILES = new Set([".env", "env", "credentials"]);
-
-  const isSensitive = (path: string): boolean => {
-    const segments = path.split(/[/\\]/);
-    const basename = segments.at(-1) ?? "";
-    if (basename.startsWith(".")) return true;
-    if (SENSITIVE_FILES.has(basename)) return true;
-    return segments.some((s) => SENSITIVE_SEGMENTS.has(s));
-  };
-
-  const fileEntries = Object.entries(projectFiles).filter(([name]) => !isSensitive(name));
+  const fileEntries = Object.entries(projectFiles).filter(
+    ([name]) => !isSensitivePath(name)
+  );
   const fileTree = fileEntries.map(([name]) => `[file] ${name}`).join("\n");
   const keySnippets = fileEntries
     .slice(0, 8)
@@ -58,21 +86,17 @@ ${keySnippets || "(no existing files)"}`,
     const parsed = safeParseAIJSON<ResearchArtifact>(text);
     if (parsed?.summary) {
       let relevantFiles = parsed.relevantFiles;
-      const isValidRelevantFile = (f: unknown): f is { name: string; snippet: string } =>
-        f != null &&
-        typeof (f as Record<string, unknown>).name === "string" &&
-        typeof (f as Record<string, unknown>).snippet === "string";
       if (Array.isArray(relevantFiles)) {
-        relevantFiles = relevantFiles.filter(isValidRelevantFile);
+        relevantFiles = relevantFiles.filter(isRelevantFile);
       } else if (typeof relevantFiles === "string") {
         try {
           const parsedArr = JSON.parse(relevantFiles);
-          relevantFiles = Array.isArray(parsedArr) ? parsedArr : [];
+          relevantFiles = Array.isArray(parsedArr) ? parsedArr.filter(isRelevantFile) : [];
         } catch {
           relevantFiles = [];
         }
-      } else if (relevantFiles != null && typeof relevantFiles === "object") {
-        relevantFiles = [relevantFiles as { name: string; snippet: string }];
+      } else if (isRelevantFile(relevantFiles)) {
+        relevantFiles = [relevantFiles];
       } else {
         relevantFiles = [];
       }

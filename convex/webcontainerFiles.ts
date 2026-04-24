@@ -112,6 +112,30 @@ export const getLatestFiles = query({
 });
 
 /**
+ * Get latest files for a specific user (for use from background jobs/Inngest).
+ */
+export const getLatestFilesForUser = query({
+  args: {
+    userId: v.string(),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== args.userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const files = await ctx.db
+      .query("webcontainerFiles")
+      .withIndex("by_projectId_createdAt", (q) => q.eq("projectId", args.projectId))
+      .order("desc")
+      .take(1);
+
+    return files[0] ?? null;
+  },
+});
+
+/**
  * Get files by fragment ID
  */
 export const getFilesByFragment = query({

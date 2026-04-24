@@ -4,3 +4,21 @@
 2026-04-22 00:12:00,730 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
 2026-04-22 00:12:01,232 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
 2026-04-22 00:12:01,234 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
+2026-04-22 00:26:39,581 - proxmox-mcp.proxmox - INFO - Connecting to Proxmox host: 192.168.1.150
+2026-04-22 00:26:39,639 - proxmox-mcp.proxmox - INFO - Successfully connected to Proxmox API
+2026-04-22 00:26:39,645 - proxmox-mcp - INFO - Starting MCP server...
+2026-04-22 00:26:39,657 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-22 00:26:39,661 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 00:26:39,662 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
+2026-04-22 00:53:12,600 - proxmox-mcp.proxmox - INFO - Connecting to Proxmox host: 192.168.1.150
+2026-04-22 00:53:12,686 - proxmox-mcp.proxmox - INFO - Successfully connected to Proxmox API
+2026-04-22 00:53:12,692 - proxmox-mcp - INFO - Starting MCP server...
+2026-04-22 00:53:12,702 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-22 00:53:12,708 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 00:53:12,708 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
+2026-04-22 21:11:36,959 - proxmox-mcp.proxmox - INFO - Connecting to Proxmox host: 192.168.1.150
+2026-04-22 21:11:37,032 - proxmox-mcp.proxmox - INFO - Successfully connected to Proxmox API
+2026-04-22 21:11:37,037 - proxmox-mcp - INFO - Starting MCP server...
+2026-04-22 21:11:37,047 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-22 21:11:37,051 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 21:11:37,052 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
