@@ -1,23 +1,4 @@
 import type { NextConfig } from "next";
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const require = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const hasCritters = (() => {
-  try {
-    require.resolve("critters");
-    return true;
-  } catch {
-    console.warn(
-      "critters dependency not found; disabling experimental.optimizeCss. Install `critters` to re-enable."
-    );
-    return false;
-  }
-})();
 
 // Security headers for all routes
 const securityHeaders = [
@@ -175,75 +156,12 @@ const nextConfig: NextConfig = {
 
   // Experimental optimizations
   experimental: {
-    optimizeCss: hasCritters,
+    optimizeCss: true,
     scrollRestoration: true,
   },
 
   // Turbopack config
   turbopack: {},
-
-  // Webpack optimizations
-  webpack: (config, { isServer }) => {
-    // Tree-shaking
-    config.optimization = {
-      ...config.optimization,
-      usedExports: true,
-    };
-
-    // Bundle splitting for client
-    if (!isServer) {
-      config.optimization.splitChunks = {
-        chunks: "all",
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          framework: {
-            name: "framework",
-            chunks: "all",
-            test: /[\\/]node_modules[\\/](react|react-dom|scheduler|prop-types|use-subscription)[\\/]/,
-            priority: 40,
-            enforce: true,
-          },
-          lib: {
-            test(module: any) {
-              return (
-                module.size() > 160000 &&
-                /node_modules[/\\]/.test(module.identifier())
-              );
-            },
-            name(module: any) {
-              const crypto = require("crypto");
-              const hash = crypto.createHash("sha1");
-              hash.update(module.identifier());
-              return hash.digest("hex").substring(0, 8);
-            },
-            priority: 30,
-            minChunks: 1,
-            reuseExistingChunk: true,
-          },
-          commons: {
-            name: "commons",
-            chunks: "all",
-            minChunks: 2,
-            priority: 20,
-          },
-          shared: {
-            name(module: any, chunks: any[]) {
-              const crypto = require("crypto");
-              const hash = crypto.createHash("sha1");
-              hash.update(chunks.map((c: any) => c.name).join("~"));
-              return hash.digest("hex").substring(0, 8);
-            },
-            priority: 10,
-            minChunks: 2,
-            reuseExistingChunk: true,
-          },
-        },
-      };
-    }
-
-    return config;
-  },
 };
 
 export default nextConfig;
