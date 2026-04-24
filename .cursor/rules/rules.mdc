@@ -2,4 +2,4 @@
 alwaysApply: true
 ---
 
-Stop making so many .md files if so do it in the @explaninations folder please. 
+Avoid creating extra `.md` files unless the user asks. Use `README.md`, `AGENTS.md`, and `CLAUDE.md` for project documentation. 

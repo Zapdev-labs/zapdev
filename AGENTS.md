@@ -21,8 +21,7 @@
 │   └── trpc/             # Type-safe API (routers/, client.ts, server.ts)
 ├── convex/               # Real-time database (schema, queries, mutations, actions)
 ├── sandbox-templates/    # E2B sandbox configs (nextjs template with compile_page.sh)
-├── tests/                # Jest suite with centralized mocks
-└── explanations/         # ALL documentation goes here (not root)
+└── tests/                # Jest suite with centralized mocks
 ```
 
 ## ESSENTIAL COMMANDS
@@ -58,7 +57,7 @@ bun run convex:deploy    # Deploy Convex to production
 - **NEVER** use `npm` or `pnpm` — Bun only
 - **NEVER** use `.filter()` in Convex queries — use `.withIndex()` to avoid O(N) scans
 - **NEVER** expose Clerk user IDs in public APIs
-- **NEVER** create `.md` files in root — ALL docs go in `explanations/`
+- **NEVER** add stray documentation `.md` files unless the user asks — keep `README.md`, `AGENTS.md`, and `CLAUDE.md` as the main references
 - **NEVER** use absolute paths in AI-generated code (e.g., `/home/user/...`)
 - **NEVER** load Tailwind as external stylesheet (use compiled CSS)
 - **NEVER** use `as` or `any` to suppress TypeScript errors (warns allowed, errors not)

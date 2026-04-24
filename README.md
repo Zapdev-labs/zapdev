@@ -157,8 +157,6 @@ INNGEST_SIGNING_KEY=""
 
 ## Deployment to Vercel
 
-For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
 Quick overview:
 1. Set up Inngest Cloud account and get your keys
 2. Deploy to Vercel with all required environment variables

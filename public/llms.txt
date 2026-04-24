@@ -89,7 +89,7 @@ When interacting with ZapDev or generating code for it:
 5. **TypeScript**: Strict mode enabled—avoid `any` types
 6. **File Paths**: Never use absolute paths like `/home/user/...` in generated code
 7. **Tailwind**: Do not load as external stylesheet—use bundled version
-8. **Documentation**: All markdown guides belong in `explanations/` directory
+8. **Documentation**: Prefer `README.md`, `AGENTS.md`, and `CLAUDE.md`; avoid adding extra markdown files unless requested
 
 ## API Structure
 
