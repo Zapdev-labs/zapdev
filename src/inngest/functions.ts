@@ -83,6 +83,20 @@ function logProviderDebug(context: string, details: Record<string, unknown>): vo
   });
 }
 
+function isMessageArray(value: unknown): value is Message[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "type" in item &&
+        "role" in item,
+    )
+  );
+}
+
 function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
@@ -716,7 +730,9 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
       const messageId = await convex.mutation(api.messages.createForUser, {
         userId,
         projectId,
-        content: parseAgentOutput(responseOutput),
+        content: isMessageArray(responseOutput)
+          ? parseAgentOutput(responseOutput)
+          : "Fragment",
         role: "ASSISTANT",
         type: "RESULT",
       });
@@ -726,7 +742,9 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         messageId: messageId as Id<"messages">,
         sandboxId: e2bResult.sandboxId,
         sandboxUrl: e2bResult.sandboxUrl,
-        title: parseAgentOutput(fragmentTitleOutput),
+        title: isMessageArray(fragmentTitleOutput)
+          ? parseAgentOutput(fragmentTitleOutput)
+          : "Fragment",
         files: e2bResult.files,
         metadata: {
           source: "inngest-agent-kit",
