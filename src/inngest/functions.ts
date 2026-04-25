@@ -224,13 +224,29 @@ const getModelForAgent = (
   return resolveModel(requestedModel as ModelId, prompt);
 };
 
-const getToolCallingModelForAgent = (selectedModel: string): string => {
-  if (!MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS.has(selectedModel)) {
-    return selectedModel;
+export const getToolCallingModelForAgent = (selectedModel: string): string => {
+  let toolCallingModel = selectedModel;
+
+  // `:nitro` forces throughput sorting, which overrides OpenRouter's tool-aware
+  // provider routing. Strip it for AgentKit requests so tool calls use the base
+  // model with quality-first routing.
+  if (toolCallingModel.endsWith(":nitro")) {
+    const replacementModel = toolCallingModel.slice(0, -":nitro".length);
+    console.warn("[PROVIDER_DEBUG] Removing :nitro for tool-calling request", {
+      selectedModel: toolCallingModel,
+      replacementModel,
+      reason:
+        "Tool-calling requests should not force throughput sorting when provider reliability matters",
+    });
+    toolCallingModel = replacementModel;
+  }
+
+  if (!MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS.has(toolCallingModel)) {
+    return toolCallingModel;
   }
 
   console.warn("[PROVIDER_DEBUG] Replacing model for AgentKit tool support", {
-    selectedModel,
+    selectedModel: toolCallingModel,
     replacementModel: TOOL_CALLING_FALLBACK_MODEL,
     reason: "AgentKit requires reliable tool-call responses for sandbox writes",
   });
@@ -642,6 +658,63 @@ async function runE2bCodingAgent(input: {
   };
 }
 
+async function runE2bCodingAgentWithFallbacks(input: {
+  framework: Framework;
+  augmentedPrompt: string;
+  complexity: "simple" | "medium" | "complex";
+  previousMessages: Message[];
+  selectedModel: string;
+  codeSystem: string;
+}): Promise<Awaited<ReturnType<typeof runE2bCodingAgent>>> {
+  const retryModels = buildModelsFallback(input.selectedModel, CODING_FALLBACK_CHAIN);
+  let lastError: unknown;
+
+  for (const [index, attemptModel] of retryModels.entries()) {
+    try {
+      if (index > 0) {
+        console.warn("[PROVIDER_DEBUG] Retrying coding agent with fallback model", {
+          requestedModel: input.selectedModel,
+          attemptModel,
+          attempt: index + 1,
+          totalAttempts: retryModels.length,
+        });
+      }
+
+      return await runE2bCodingAgent({
+        framework: input.framework,
+        augmentedPrompt: input.augmentedPrompt,
+        complexity: input.complexity,
+        state: createState<AgentState>(
+          { summary: "", files: {} },
+          { messages: input.previousMessages }
+        ),
+        selectedModel: attemptModel,
+        codeSystem: input.codeSystem,
+      });
+    } catch (error) {
+      lastError = error;
+
+      logProviderDebug("coding-agent.network.run.attempt.failed", {
+        provider: "openrouter",
+        requestedModel: input.selectedModel,
+        attemptModel,
+        attempt: index + 1,
+        totalAttempts: retryModels.length,
+        providerReturnedError: isProviderReturnedError(error),
+        error: toErrorDetails(error),
+      });
+
+      if (!isProviderReturnedError(error) || index === retryModels.length - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Coding agent failed without returning an error");
+}
+
 // ─── Main Inngest Function ────────────────────────────────────────────────────
 export const codeAgentFunction = inngest.createFunction(
   {
@@ -702,11 +775,6 @@ export const codeAgentFunction = inngest.createFunction(
 
     const framework = convexFrameworkToAgent(project.framework);
 
-    const state = createState<AgentState>(
-      { summary: "", files: {} },
-      { messages: previousMessages }
-    );
-
     const planBlock = plan
       ? `\n\n<implementation_plan>\n${plan}\n</implementation_plan>`
       : "";
@@ -764,11 +832,11 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
 
     let e2bResult: Awaited<ReturnType<typeof runE2bCodingAgent>>;
     try {
-      e2bResult = await runE2bCodingAgent({
+      e2bResult = await runE2bCodingAgentWithFallbacks({
         framework,
         augmentedPrompt,
         complexity,
-        state,
+        previousMessages,
         selectedModel: codingModel,
         codeSystem,
       });
