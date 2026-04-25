@@ -62,17 +62,107 @@ const FRAMEWORK_PROMPTS: Record<Framework, string> = {
 const PLANNING_MODEL = "moonshotai/kimi-k2.6:nitro";
 const RESEARCH_MODEL = "x-ai/grok-4.1-fast";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const TOOL_CALLING_FALLBACK_MODEL = "moonshotai/kimi-k2.6";
+const MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS = new Set([
+  "arcee-ai/trinity-large-thinking",
+]);
 
-function toErrorDetails(error: unknown): Record<string, unknown> {
+// OpenRouter native fallback chain. If the upstream provider for the primary
+// model returns a non-2xx response (the source of "Provider returned error"),
+// OpenRouter automatically routes the same request to the next model.
+const CODING_FALLBACK_CHAIN = [
+  "moonshotai/kimi-k2.6",
+  "anthropic/claude-haiku-4.5",
+];
+const POST_PROCESS_FALLBACK_CHAIN = ["moonshotai/kimi-k2.6"];
+
+const buildModelsFallback = (primary: string, chain: string[]): string[] => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of [primary, ...chain]) {
+    if (seen.has(m)) continue;
+    seen.add(m);
+    out.push(m);
+  }
+  return out;
+};
+
+const openrouterAgentModel = (
+  model: string,
+  defaultParameters?: Record<string, unknown>,
+  fallbackChain?: string[]
+) => {
+  const merged: Record<string, unknown> = { ...(defaultParameters ?? {}) };
+  if (fallbackChain && fallbackChain.length > 0) {
+    merged.models = buildModelsFallback(model, fallbackChain);
+  }
+  return openai({
+    model,
+    baseUrl: OPENROUTER_BASE_URL,
+    apiKey: process.env.OPENROUTER_API_KEY,
+    defaultParameters: merged,
+  });
+};
+
+const isProviderReturnedError = (error: unknown): boolean => {
+  const message =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /provider returned error/i.test(message);
+};
+
+function getErrorField(error: unknown, field: string): unknown {
+  if (typeof error !== "object" || error === null) return undefined;
+  return (error as Record<string, unknown>)[field];
+}
+
+function toResponsePreview(value: unknown): unknown {
+  if (typeof value === "string") return truncate(value, 4000);
+  if (typeof value !== "object" || value === null) return value;
+
+  try {
+    return truncate(JSON.stringify(value), 4000);
+  } catch {
+    return "[unserializable response body]";
+  }
+}
+
+function toErrorDetails(error: unknown, depth = 0): Record<string, unknown> {
+  const details: Record<string, unknown> = {};
+
   if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
+    details.name = error.name;
+    details.message = error.message;
+    details.stack = error.stack;
+  } else {
+    details.value = error;
   }
 
-  return { value: error };
+  const status = getErrorField(error, "status") ?? getErrorField(error, "statusCode");
+  const code = getErrorField(error, "code");
+  const type = getErrorField(error, "type");
+  const requestId =
+    getErrorField(error, "requestId") ?? getErrorField(error, "request_id");
+  const responseHeaders =
+    getErrorField(error, "headers") ?? getErrorField(error, "responseHeaders");
+  const responseBody =
+    getErrorField(error, "body") ??
+    getErrorField(error, "data") ??
+    getErrorField(error, "responseBody") ??
+    getErrorField(error, "response");
+
+  if (status !== undefined) details.status = status;
+  if (code !== undefined) details.code = code;
+  if (type !== undefined) details.type = type;
+  if (requestId !== undefined) details.requestId = requestId;
+  if (responseHeaders !== undefined) details.responseHeaders = responseHeaders;
+  if (responseBody !== undefined) details.responseBody = toResponsePreview(responseBody);
+
+  const cause = getErrorField(error, "cause");
+  if (cause && depth < 3) {
+    details.cause = toErrorDetails(cause, depth + 1);
+  }
+
+  return details;
 }
 
 function logProviderDebug(context: string, details: Record<string, unknown>): void {
@@ -92,7 +182,7 @@ function isMessageArray(value: unknown): value is Message[] {
         typeof item === "object" &&
         item !== null &&
         "type" in item &&
-        "role" in item,
+        "content" in item,
     )
   );
 }
@@ -132,6 +222,19 @@ const getModelForAgent = (
     return selectModelForTask(prompt);
   }
   return resolveModel(requestedModel as ModelId, prompt);
+};
+
+const getToolCallingModelForAgent = (selectedModel: string): string => {
+  if (!MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS.has(selectedModel)) {
+    return selectedModel;
+  }
+
+  console.warn("[PROVIDER_DEBUG] Replacing model for AgentKit tool support", {
+    selectedModel,
+    replacementModel: TOOL_CALLING_FALLBACK_MODEL,
+    reason: "AgentKit requires reliable tool-call responses for sandbox writes",
+  });
+  return TOOL_CALLING_FALLBACK_MODEL;
 };
 
 interface AgentState {
@@ -435,12 +538,11 @@ async function runE2bCodingAgent(input: {
     description: "An expert coding agent",
     system: codeSystem,
     tool_choice: "required",
-    model: openai({
-      model: selectedModel,
-      baseUrl: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY,
-      defaultParameters: { temperature: 0.1 },
-    }),
+    model: openrouterAgentModel(
+      selectedModel,
+      { temperature: 0.1 },
+      CODING_FALLBACK_CHAIN
+    ),
     tools: [terminalTool, createOrUpdateFilesTool, readFilesTool],
     lifecycle: {
       onResponse: async ({ result, network }) => {
@@ -639,9 +741,11 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       event.data.model as string | undefined,
       userPrompt
     );
-    console.log(`[CODING] Starting with ${selectedModel} (${framework})...`);
+    const codingModel = getToolCallingModelForAgent(selectedModel);
+    console.log(`[CODING] Starting with ${codingModel} (${framework})...`);
     console.log("[PROVIDER_DEBUG] Inngest model/provider config", {
       selectedModel,
+      codingModel,
       framework,
       openRouterBaseUrl: OPENROUTER_BASE_URL,
       hasOpenRouterApiKey: Boolean(process.env.OPENROUTER_API_KEY),
@@ -665,13 +769,16 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         augmentedPrompt,
         complexity,
         state,
-        selectedModel,
+        selectedModel: codingModel,
         codeSystem,
       });
     } catch (error) {
       logProviderDebug("coding-agent.network.run.failed", {
         provider: "openrouter",
         model: selectedModel,
+        codingModel,
+        fallbackChain: buildModelsFallback(codingModel, CODING_FALLBACK_CHAIN),
+        providerReturnedError: isProviderReturnedError(error),
         framework,
         complexity,
         augmentedPromptLength: augmentedPrompt.length,
@@ -686,22 +793,22 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
       name: "fragment-title-generator",
       description: "A fragment title generator",
       system: FRAGMENT_TITLE_PROMPT,
-      model: openai({
-        model: "anthropic/claude-haiku-4.5",
-        baseUrl: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY,
-      }),
+      model: openrouterAgentModel(
+        "anthropic/claude-haiku-4.5",
+        undefined,
+        POST_PROCESS_FALLBACK_CHAIN
+      ),
     });
 
     const responseGenerator = createAgent({
       name: "response-generator",
       description: "A response generator",
       system: RESPONSE_PROMPT,
-      model: openai({
-        model: "anthropic/claude-haiku-4.5",
-        baseUrl: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY,
-      }),
+      model: openrouterAgentModel(
+        "anthropic/claude-haiku-4.5",
+        undefined,
+        POST_PROCESS_FALLBACK_CHAIN
+      ),
     });
 
     let fragmentTitleOutput: unknown;
