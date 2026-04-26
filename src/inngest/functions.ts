@@ -49,6 +49,7 @@ import {
   parseAgentOutput,
 } from "./utils";
 import { estimateComplexity } from "@/agents/timeout-manager";
+import { resolveCodingModelPlan } from "./model-routing";
 
 const FRAMEWORK_PROMPTS: Record<Framework, string> = {
   nextjs: NEXTJS_PROMPT,
@@ -62,45 +63,16 @@ const FRAMEWORK_PROMPTS: Record<Framework, string> = {
 const PLANNING_MODEL = "moonshotai/kimi-k2.6:nitro";
 const RESEARCH_MODEL = "x-ai/grok-4.1-fast";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const TOOL_CALLING_FALLBACK_MODEL = "moonshotai/kimi-k2.6";
-const MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS = new Set([
-  "arcee-ai/trinity-large-thinking",
-]);
-
-// OpenRouter native fallback chain. If the upstream provider for the primary
-// model returns a non-2xx response (the source of "Provider returned error"),
-// OpenRouter automatically routes the same request to the next model.
-const CODING_FALLBACK_CHAIN = [
-  "moonshotai/kimi-k2.6",
-  "anthropic/claude-haiku-4.5",
-];
-const POST_PROCESS_FALLBACK_CHAIN = ["moonshotai/kimi-k2.6"];
-
-const buildModelsFallback = (primary: string, chain: string[]): string[] => {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const m of [primary, ...chain]) {
-    if (seen.has(m)) continue;
-    seen.add(m);
-    out.push(m);
-  }
-  return out;
-};
 
 const openrouterAgentModel = (
   model: string,
-  defaultParameters?: Record<string, unknown>,
-  fallbackChain?: string[]
+  defaultParameters?: Record<string, unknown>
 ) => {
-  const merged: Record<string, unknown> = { ...(defaultParameters ?? {}) };
-  if (fallbackChain && fallbackChain.length > 0) {
-    merged.models = buildModelsFallback(model, fallbackChain);
-  }
   return openai({
     model,
     baseUrl: OPENROUTER_BASE_URL,
     apiKey: process.env.OPENROUTER_API_KEY,
-    defaultParameters: merged,
+    defaultParameters,
   });
 };
 
@@ -222,35 +194,6 @@ const getModelForAgent = (
     return selectModelForTask(prompt);
   }
   return resolveModel(requestedModel as ModelId, prompt);
-};
-
-export const getToolCallingModelForAgent = (selectedModel: string): string => {
-  let toolCallingModel = selectedModel;
-
-  // `:nitro` forces throughput sorting, which overrides OpenRouter's tool-aware
-  // provider routing. Strip it for AgentKit requests so tool calls use the base
-  // model with quality-first routing.
-  if (toolCallingModel.endsWith(":nitro")) {
-    const replacementModel = toolCallingModel.slice(0, -":nitro".length);
-    console.warn("[PROVIDER_DEBUG] Removing :nitro for tool-calling request", {
-      selectedModel: toolCallingModel,
-      replacementModel,
-      reason:
-        "Tool-calling requests should not force throughput sorting when provider reliability matters",
-    });
-    toolCallingModel = replacementModel;
-  }
-
-  if (!MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS.has(toolCallingModel)) {
-    return toolCallingModel;
-  }
-
-  console.warn("[PROVIDER_DEBUG] Replacing model for AgentKit tool support", {
-    selectedModel: toolCallingModel,
-    replacementModel: TOOL_CALLING_FALLBACK_MODEL,
-    reason: "AgentKit requires reliable tool-call responses for sandbox writes",
-  });
-  return TOOL_CALLING_FALLBACK_MODEL;
 };
 
 interface AgentState {
@@ -553,11 +496,9 @@ async function runE2bCodingAgent(input: {
     name: "code-agent",
     description: "An expert coding agent",
     system: codeSystem,
-    tool_choice: "required",
     model: openrouterAgentModel(
       selectedModel,
-      { temperature: 0.1 },
-      CODING_FALLBACK_CHAIN
+      { temperature: 0.1 }
     ),
     tools: [terminalTool, createOrUpdateFilesTool, readFilesTool],
     lifecycle: {
@@ -658,29 +599,35 @@ async function runE2bCodingAgent(input: {
   };
 }
 
+type CodingAgentRunResult = Awaited<ReturnType<typeof runE2bCodingAgent>> & {
+  managerModel: string;
+  attemptedModels: string[];
+  attemptCount: number;
+};
+
 async function runE2bCodingAgentWithFallbacks(input: {
   framework: Framework;
   augmentedPrompt: string;
   complexity: "simple" | "medium" | "complex";
   previousMessages: Message[];
-  selectedModel: string;
+  requestedModel: string;
+  retryModels: string[];
   codeSystem: string;
-}): Promise<Awaited<ReturnType<typeof runE2bCodingAgent>>> {
-  const retryModels = buildModelsFallback(input.selectedModel, CODING_FALLBACK_CHAIN);
+}): Promise<CodingAgentRunResult> {
   let lastError: unknown;
 
-  for (const [index, attemptModel] of retryModels.entries()) {
+  for (const [index, attemptModel] of input.retryModels.entries()) {
     try {
       if (index > 0) {
         console.warn("[PROVIDER_DEBUG] Retrying coding agent with fallback model", {
-          requestedModel: input.selectedModel,
+          requestedModel: input.requestedModel,
           attemptModel,
           attempt: index + 1,
-          totalAttempts: retryModels.length,
+          totalAttempts: input.retryModels.length,
         });
       }
 
-      return await runE2bCodingAgent({
+      const result = await runE2bCodingAgent({
         framework: input.framework,
         augmentedPrompt: input.augmentedPrompt,
         complexity: input.complexity,
@@ -691,20 +638,26 @@ async function runE2bCodingAgentWithFallbacks(input: {
         selectedModel: attemptModel,
         codeSystem: input.codeSystem,
       });
+      return {
+        ...result,
+        managerModel: attemptModel,
+        attemptedModels: input.retryModels,
+        attemptCount: index + 1,
+      };
     } catch (error) {
       lastError = error;
 
       logProviderDebug("coding-agent.network.run.attempt.failed", {
         provider: "openrouter",
-        requestedModel: input.selectedModel,
+        requestedModel: input.requestedModel,
         attemptModel,
         attempt: index + 1,
-        totalAttempts: retryModels.length,
+        totalAttempts: input.retryModels.length,
         providerReturnedError: isProviderReturnedError(error),
         error: toErrorDetails(error),
       });
 
-      if (!isProviderReturnedError(error) || index === retryModels.length - 1) {
+      if (!isProviderReturnedError(error) || index === input.retryModels.length - 1) {
         throw error;
       }
     }
@@ -713,6 +666,51 @@ async function runE2bCodingAgentWithFallbacks(input: {
   throw lastError instanceof Error
     ? lastError
     : new Error("Coding agent failed without returning an error");
+}
+
+async function persistAgentFailure(input: {
+  userId: string;
+  projectId: Id<"projects">;
+  framework: Framework;
+  requestedModel: string;
+  toolCallingModel: string;
+  retryModels: string[];
+  complexity: "simple" | "medium" | "complex";
+  error: unknown;
+}) {
+  const convex = getConvexClient();
+  const errorDetails = toErrorDetails(input.error);
+  const renderedDetails = JSON.stringify(errorDetails, null, 2);
+
+  const content = [
+    "The background coding agent failed before it could save a fragment.",
+    "",
+    `Requested model: ${input.requestedModel}`,
+    `Tool-calling model: ${input.toolCallingModel}`,
+    `Retry chain: ${input.retryModels.join(" -> ")}`,
+    `Framework: ${input.framework}`,
+    `Complexity: ${input.complexity}`,
+    "",
+    "Provider details:",
+    renderedDetails,
+  ].join("\n");
+
+  try {
+    await convex.mutation(api.messages.createForUser, {
+      userId: input.userId,
+      projectId: input.projectId,
+      content: truncate(content, 8000),
+      role: "ASSISTANT",
+      type: "ERROR",
+      status: "COMPLETE",
+    });
+  } catch (saveError) {
+    console.error("[PROVIDER_DEBUG] Failed to persist agent failure message", {
+      userId: input.userId,
+      projectId: input.projectId,
+      saveError: toErrorDetails(saveError),
+    });
+  }
 }
 
 // ─── Main Inngest Function ────────────────────────────────────────────────────
@@ -809,11 +807,15 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       event.data.model as string | undefined,
       userPrompt
     );
-    const codingModel = getToolCallingModelForAgent(selectedModel);
+    const codingPlan = resolveCodingModelPlan(selectedModel);
+    const codingModel = codingPlan.managerModel;
     console.log(`[CODING] Starting with ${codingModel} (${framework})...`);
     console.log("[PROVIDER_DEBUG] Inngest model/provider config", {
       selectedModel,
+      toolCallingModel: codingPlan.toolCallingModel,
       codingModel,
+      retryModels: codingPlan.retryModels,
+      usesDedicatedManager: codingPlan.usesDedicatedManager,
       framework,
       openRouterBaseUrl: OPENROUTER_BASE_URL,
       hasOpenRouterApiKey: Boolean(process.env.OPENROUTER_API_KEY),
@@ -823,6 +825,19 @@ DO NOT explain your code. DO NOT provide commentary. Just use the tools and outp
       researchLength: research.length,
       previousMessagesCount: previousMessages.length,
     });
+    if (codingPlan.toolCallingModel !== selectedModel) {
+      console.warn("[PROVIDER_DEBUG] Normalized tool-calling model selection", {
+        selectedModel,
+        toolCallingModel: codingPlan.toolCallingModel,
+      });
+    }
+    if (codingPlan.usesDedicatedManager) {
+      console.warn("[PROVIDER_DEBUG] Using dedicated manager model for AgentKit", {
+        selectedModel,
+        toolCallingModel: codingPlan.toolCallingModel,
+        managerModel: codingPlan.managerModel,
+      });
+    }
 
     const codeSystem = `${FRAMEWORK_PROMPTS[framework]}
 
@@ -830,22 +845,24 @@ You are running inside an Inngest workflow with tool access to an E2B sandbox.
 Always implement the user's request using the available tools.
 After finishing, return a concise summary wrapped in <task_summary> tags.`;
 
-    let e2bResult: Awaited<ReturnType<typeof runE2bCodingAgent>>;
+    let e2bResult: CodingAgentRunResult;
     try {
       e2bResult = await runE2bCodingAgentWithFallbacks({
         framework,
         augmentedPrompt,
         complexity,
         previousMessages,
-        selectedModel: codingModel,
+        requestedModel: selectedModel,
+        retryModels: codingPlan.retryModels,
         codeSystem,
       });
     } catch (error) {
       logProviderDebug("coding-agent.network.run.failed", {
         provider: "openrouter",
         model: selectedModel,
+        toolCallingModel: codingPlan.toolCallingModel,
         codingModel,
-        fallbackChain: buildModelsFallback(codingModel, CODING_FALLBACK_CHAIN),
+        retryModels: codingPlan.retryModels,
         providerReturnedError: isProviderReturnedError(error),
         framework,
         complexity,
@@ -854,6 +871,16 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         previousMessagesCount: previousMessages.length,
         error: toErrorDetails(error),
       });
+      await persistAgentFailure({
+        userId: event.data.userId as string,
+        projectId: event.data.projectId as Id<"projects">,
+        framework,
+        requestedModel: selectedModel,
+        toolCallingModel: codingPlan.toolCallingModel,
+        retryModels: codingPlan.retryModels,
+        complexity,
+        error,
+      });
       throw error;
     }
 
@@ -861,22 +888,14 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
       name: "fragment-title-generator",
       description: "A fragment title generator",
       system: FRAGMENT_TITLE_PROMPT,
-      model: openrouterAgentModel(
-        "anthropic/claude-haiku-4.5",
-        undefined,
-        POST_PROCESS_FALLBACK_CHAIN
-      ),
+      model: openrouterAgentModel("anthropic/claude-haiku-4.5"),
     });
 
     const responseGenerator = createAgent({
       name: "response-generator",
       description: "A response generator",
       system: RESPONSE_PROMPT,
-      model: openrouterAgentModel(
-        "anthropic/claude-haiku-4.5",
-        undefined,
-        POST_PROCESS_FALLBACK_CHAIN
-      ),
+      model: openrouterAgentModel("anthropic/claude-haiku-4.5"),
     });
 
     let fragmentTitleOutput: unknown;
@@ -924,6 +943,11 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         metadata: {
           source: "inngest-agent-kit",
           model: selectedModel,
+          toolCallingModel: codingPlan.toolCallingModel,
+          managerModel: e2bResult.managerModel,
+          retryModels: e2bResult.attemptedModels,
+          attemptCount: e2bResult.attemptCount,
+          complexity,
         },
         framework: frameworkToConvexEnum(e2bResult.framework),
       });
