@@ -1,203 +1,141 @@
 # ZapDev
 
-AI-powered development platform that lets you create web applications by chatting with AI agents in real-time sandboxes.
+ZapDev is an AI-powered app builder for generating and iterating on web projects with live sandboxes, streaming agents, and persistent project state.
 
-## Features
+## What It Does
 
-- 🤖 AI-powered code generation with AI agents
-- 💻 Real-time Next.js application development in E2B sandboxes
-- 🔄 Live preview & code preview with split-pane interface
-- 📁 File explorer with syntax highlighting and code theme
-- 💬 Conversational project development with message history
-- 🎯 Smart usage tracking and rate limiting
-- 💳 Subscription management with pro features
-- 🔐 Authentication with Clerk
-- ⚙️ Background job processing with Inngest + Agent Kit
-- 🗃️ Project management and persistence
+- Generates app code from natural language prompts
+- Streams agent progress in real time
+- Runs generated projects inside isolated E2B sandboxes
+- Persists projects, messages, usage, and billing state in Convex
+- Supports background execution through Inngest workflows
+- Uses Clerk for authentication and Polar for subscriptions
 
-## Tech Stack
+## Stack
 
-- Next.js 15
+- Next.js 16
 - React 19
 - TypeScript
 - Tailwind CSS v4
-- Shadcn/ui
 - tRPC
-- Prisma ORM
-- PostgreSQL
-- Vercel AI Gateway (supports OpenAI, Anthropic, Grok, and more)
-- E2B Code Interpreter
-- Clerk Authentication
+- Convex
 - Inngest
-- Prisma
-- Radix UI
-- Lucide React
+- E2B
+- OpenRouter
+- Clerk
+- Polar
 
-## Building E2B Template (REQUIRED)
+## Project Structure
 
-Before running the application, you must build the E2B template that the AI agents use to create sandboxes.
-
-**Prerequisites:**
-- Docker must be installed and running (the template build command uses Docker CLI)
-
-```bash
-# Install E2B CLI
-npm i -g @e2b/cli
-# or
-brew install e2b
-
-# Login to E2B
-e2b auth login
-
-# Navigate to the sandbox template directory
-cd sandbox-templates/nextjs
-
-# Build the template (replace 'your-template-name' with your desired name)
-e2b template build --name your-template-name --cmd "/compile_page.sh"
+```text
+src/
+  app/          Next.js App Router pages and API routes
+  agents/       Primary agent orchestration and sandbox utilities
+  inngest/      Background workflows
+  modules/      Feature modules
+  prompts/      Agent and framework prompts
+  trpc/         API router and client wiring
+convex/         Database schema, queries, mutations, actions
+sandbox-templates/
+  nextjs/
+  react/
+  vue/
+  angular/
+  svelte/
+tests/          Jest tests and mocks
 ```
 
-After building the template, update the template name in `src/inngest/functions.ts`:
+## Requirements
 
-```typescript
-// Replace "zapdev" with your template name (line 22)
-const sandbox = await Sandbox.create("your-template-name");
-```
+- Bun
+- Node.js 20+
+- A Convex deployment
+- An E2B account and API key
+- An OpenRouter API key
+- Clerk and Polar credentials for full auth/billing flows
 
-## Development
+## Local Setup
+
+1. Install dependencies:
 
 ```bash
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp env.example .env
-# Fill in your API keys and database URL
-
-# Set up database
-npx prisma migrate dev # Enter name "init" for migration
-
-# Start development server
-npm run dev
+bun install
 ```
 
-### Setting Up Inngest for AI Code Generation
+2. Copy the environment template:
 
-You have two options for running Inngest:
-
-#### Option 1: Inngest Cloud (Recommended for Vercel Deployment)
-1. Create an account at [Inngest Cloud](https://app.inngest.com)
-2. Create a new app and get your Event Key and Signing Key
-3. Add these to your `.env` file:
-   ```bash
-   INNGEST_EVENT_KEY="your-event-key"
-   INNGEST_SIGNING_KEY="your-signing-key"
-   ```
-4. For local development with cloud, use ngrok/localtunnel:
-   ```bash
-   npx localtunnel --port 3000
-   # Then sync your tunnel URL with Inngest Cloud
-   ```
-
-#### Option 2: Local Inngest Dev Server (Development Only)
 ```bash
-# In a second terminal:
-npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+cp env.example .env.local
 ```
-- Inngest Dev UI will be available at `http://localhost:8288`
-- Note: This won't work for Vercel deployments
 
-## Setting Up Vercel AI Gateway
+3. Fill in the required values in `.env.local`.
 
-1. **Create a Vercel Account**: Go to [Vercel](https://vercel.com) and sign up or log in
-2. **Navigate to AI Gateway**: Go to the [AI Gateway Dashboard](https://vercel.com/dashboard/ai-gateway)
-3. **Create API Key**: Generate a new API key from the dashboard
-4. **Choose Your Model**: The configuration uses OpenAI models by default, but you can switch to other providers like Anthropic, xAI, etc.
+Minimum keys for meaningful local development:
 
-### Migrating from Direct OpenAI
+- `NEXT_PUBLIC_CONVEX_URL`
+- `NEXT_PUBLIC_CONVEX_SITE_URL`
+- `OPENROUTER_API_KEY`
+- `E2B_API_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `CLERK_JWT_ISSUER_DOMAIN`
+- `POLAR_ACCESS_TOKEN`
+- `POLAR_WEBHOOK_SECRET`
 
-If you're upgrading from a previous version that used OpenAI directly:
-1. Remove `OPENAI_API_KEY` from your `.env.local`
-2. Add `OPENROUTER_API_KEY` and `OPENROUTER_BASE_URL` as shown below
-3. The application now routes all AI requests through Vercel AI Gateway for better monitoring and reliability
+4. Start the frontend:
 
-### Testing the Connection
-
-Run the included test script to verify your Vercel AI Gateway setup:
 ```bash
-node test-vercel-ai-gateway.js
+bun run dev
+```
+
+5. Start Convex in a second terminal:
+
+```bash
+bun run convex:dev
+```
+
+If you use Inngest locally, point it at `http://localhost:3000/api/inngest`.
+
+## Available Commands
+
+```bash
+bun run dev
+bun run build
+bun run start
+bun run lint
+bun run convex:dev
+bun run convex:deploy
+bun run migrate:convex
 ```
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
+The repo ships with [`env.example`](/home/dih/zapdev/env.example). Important groups:
 
-```bash
-DATABASE_URL=""
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
+- App: `NEXT_PUBLIC_APP_URL`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
+- Convex: `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`
+- AI providers: `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `CEREBRAS_API_KEY`, `FIREWORKS_API_KEY`
+- Sandbox: `E2B_API_KEY`
+- Auth: Clerk keys and JWT settings
+- Billing: Polar product, price, and webhook settings
+- Optional integrations: Brave Search, Firecrawl, Sentry, UploadThing, OAuth providers
 
-# Vercel AI Gateway (replaces OpenAI)
-OPENROUTER_API_KEY=""
-OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
+## E2B Sandbox Templates
 
-# E2B
-E2B_API_KEY=""
+ZapDev uses framework-specific E2B templates from `sandbox-templates/`.
 
-# Clerk
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=""
-CLERK_SECRET_KEY=""
-NEXT_PUBLIC_CLERK_SIGN_IN_URL="/sign-in"
-NEXT_PUBLIC_CLERK_SIGN_UP_URL="/sign-up"
-NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL="/"
-NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL="/"
+Current template names used by the app:
 
-# Inngest (for background job processing)
-INNGEST_EVENT_KEY=""
-INNGEST_SIGNING_KEY=""
-```
+- `zapdev`
+- `zapdev-angular`
+- `zapdev-react`
+- `zapdev-vue`
+- `zapdev-svelte`
 
-## Deployment to Vercel
+The Next.js template includes local build scripts in [`sandbox-templates/nextjs`](/home/dih/zapdev/sandbox-templates/nextjs).
 
-Quick overview:
-1. Set up Inngest Cloud account and get your keys
-2. Deploy to Vercel with all required environment variables
-3. Sync your app with Inngest Cloud (`https://your-app.vercel.app/api/inngest`)
-4. Run database migrations on your production database
+## Notes
 
-## Additional Commands
-
-```bash
-# Database
-npm run postinstall        # Generate Prisma client
-npx prisma studio          # Open database studio
-npx prisma migrate dev     # Migrate schema changes
-npx prisma migrate reset   # Reset database (Only for development)
-
-# Build
-npm run build          # Build for production
-npm run start          # Start production server
-npm run lint           # Run ESLint
-```
-
-## Project Structure
-
-- `src/app/` - Next.js app router pages and layouts
-- `src/components/` - Reusable UI components and file explorer
-- `src/modules/` - Feature-specific modules (projects, messages, usage)
-- `src/inngest/` - Inngest clients, triggers, and Agent Kit workflows
-- `src/lib/` - Utilities and database client
-- `src/trpc/` - tRPC router and client setup
-- `prisma/` - Database schema and migrations
-- `sandbox-templates/` - E2B sandbox configuration
-
-## How It Works
-
-1. **Project Creation**: Users create projects and describe what they want to build
-2. **AI Processing**: Interactive runs stream via `/api/agent/run` (AI SDK), with optional background execution via `/api/inngest` (Inngest + Agent Kit)
-3. **Code Generation**: AI agents use E2B sandboxes to generate and test Next.js applications
-4. **Real-time Updates**: Generated code and previews are displayed in split-pane interface
-5. **File Management**: Users can browse generated files with syntax highlighting
-6. **Iteration**: Conversational development allows for refinements and additions
-
----
-
-Created by [CodeWithAntonio](https://codewithantonio.com)
+- Use Bun, not npm or pnpm, for repo commands.
+- Convex is the active database layer; Prisma-based setup instructions are obsolete here.
+- Jest is configured under [`jest.config.js`](/home/dih/zapdev/jest.config.js), but there is currently no `test` script in `package.json`.
