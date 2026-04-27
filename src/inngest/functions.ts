@@ -726,27 +726,14 @@ async function persistAgentFailure(input: {
   error: unknown;
 }) {
   const convex = getConvexClient();
-  const errorDetails = toErrorDetails(input.error);
-  const renderedDetails = JSON.stringify(errorDetails, null, 2);
 
-  const content = [
-    "The background coding agent failed before it could save a fragment.",
-    "",
-    `Requested model: ${input.requestedModel}`,
-    `Tool-calling model: ${input.toolCallingModel}`,
-    `Retry chain: ${input.retryModels.join(" -> ")}`,
-    `Framework: ${input.framework}`,
-    `Complexity: ${input.complexity}`,
-    "",
-    "Provider details:",
-    renderedDetails,
-  ].join("\n");
+  const userMessage = "Sorry, I encountered an error while generating code. Please try again.";
 
   try {
     await convex.mutation(api.messages.createForUser, {
       userId: input.userId,
       projectId: input.projectId,
-      content: truncate(content, 8000),
+      content: userMessage,
       role: "ASSISTANT",
       type: "ERROR",
       status: "COMPLETE",
