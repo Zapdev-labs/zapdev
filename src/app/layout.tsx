@@ -3,7 +3,6 @@ import { ThemeProvider } from "next-themes";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { Toaster } from "@/components/ui/sonner";
-import { WebVitalsReporter } from "@/components/web-vitals-reporter";
 import { ConvexClientProvider } from "@/components/convex-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -69,7 +68,6 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <Toaster />
-              <WebVitalsReporter />
               {children}
             </ThemeProvider>
           </ConvexClientProvider>

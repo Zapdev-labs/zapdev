@@ -17,10 +17,8 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   ANGULAR_PROMPT,
-  FRAGMENT_TITLE_PROMPT,
   NEXTJS_PROMPT,
   REACT_PROMPT,
-  RESPONSE_PROMPT,
   SVELTE_PROMPT,
   VUE_PROMPT,
 } from "@/prompt";
@@ -44,10 +42,7 @@ import {
 } from "@/agents/sandbox-utils";
 
 import { inngest } from "./client";
-import {
-  lastAssistantTextMessageContent,
-  parseAgentOutput,
-} from "./utils";
+import { lastAssistantTextMessageContent } from "./utils";
 import { estimateComplexity } from "@/agents/timeout-manager";
 import { resolveCodingModelPlan } from "./model-routing";
 
@@ -163,6 +158,59 @@ function getConvexClient(): ConvexHttpClient {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
+}
+
+function shouldRunPlanning(
+  prompt: string,
+  complexity: "simple" | "medium" | "complex"
+): boolean {
+  if (complexity === "complex") return true;
+  if (complexity === "simple") return false;
+
+  const normalized = prompt.toLowerCase();
+  return [
+    "refactor",
+    "architecture",
+    "schema",
+    "auth",
+    "authentication",
+    "authorization",
+    "payment",
+    "webhook",
+    "integration",
+    "multi-step",
+  ].some((term) => normalized.includes(term));
+}
+
+function getMaxAgentIterations(
+  complexity: "simple" | "medium" | "complex"
+): number {
+  if (complexity === "simple") return 3;
+  if (complexity === "medium") return 5;
+  return 8;
+}
+
+function stripTaskSummaryTags(summary: string): string {
+  return summary
+    .replace(/<\/?task_summary>/g, "")
+    .trim();
+}
+
+function buildFragmentTitle(userPrompt: string, summary: string): string {
+  const source = stripTaskSummaryTags(summary) || userPrompt;
+  const firstLine = source
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) return "Fragment";
+
+  return firstLine.length > 60 ? `${firstLine.slice(0, 57).trimEnd()}...` : firstLine;
+}
+
+function buildAssistantResponse(summary: string): string {
+  const cleaned = stripTaskSummaryTags(summary);
+  return cleaned || "Completed the requested changes.";
 }
 
 const truncate = (value: string, maxLength = 20_000): string => {
@@ -521,8 +569,7 @@ async function runE2bCodingAgent(input: {
     },
   });
 
-  const maxIter =
-    complexity === "simple" ? 6 : complexity === "medium" ? 10 : 15;
+  const maxIter = getMaxAgentIterations(complexity);
   console.log(`[AGENT] maxIter=${maxIter} for ${complexity} task`);
 
   const network = createNetwork<AgentState>({
@@ -728,8 +775,10 @@ export const codeAgentFunction = inngest.createFunction(
     const complexity = estimateComplexity(userPrompt);
     console.log(`[AGENT] Task complexity: ${complexity}`);
 
+    const shouldPlan = shouldRunPlanning(userPrompt, complexity);
+
     const [plan, previousMessages] = await Promise.all([
-      complexity === "simple"
+      !shouldPlan
         ? Promise.resolve("")
         : step.run("planning-agent", () => runPlanningAgent(userPrompt)),
       step.run("get-previous-messages", async () => {
@@ -884,37 +933,8 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
       throw error;
     }
 
-    const fragmentTitleGenerator = createAgent({
-      name: "fragment-title-generator",
-      description: "A fragment title generator",
-      system: FRAGMENT_TITLE_PROMPT,
-      model: openrouterAgentModel("anthropic/claude-haiku-4.5"),
-    });
-
-    const responseGenerator = createAgent({
-      name: "response-generator",
-      description: "A response generator",
-      system: RESPONSE_PROMPT,
-      model: openrouterAgentModel("anthropic/claude-haiku-4.5"),
-    });
-
-    let fragmentTitleOutput: unknown;
-    let responseOutput: unknown;
-    try {
-      [{ output: fragmentTitleOutput }, { output: responseOutput }] =
-        await Promise.all([
-          fragmentTitleGenerator.run(e2bResult.summary),
-          responseGenerator.run(e2bResult.summary),
-        ]);
-    } catch (error) {
-      logProviderDebug("post-process.generators.failed", {
-        provider: "openrouter",
-        model: "anthropic/claude-haiku-4.5",
-        summaryLength: e2bResult.summary.length,
-        error: toErrorDetails(error),
-      });
-      throw error;
-    }
+    const fragmentTitle = buildFragmentTitle(userPrompt, e2bResult.summary);
+    const responseContent = buildAssistantResponse(e2bResult.summary);
 
     await step.run("save-result", async () => {
       const convex = getConvexClient();
@@ -924,9 +944,7 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
       const messageId = await convex.mutation(api.messages.createForUser, {
         userId,
         projectId,
-        content: isMessageArray(responseOutput)
-          ? parseAgentOutput(responseOutput)
-          : "Fragment",
+        content: responseContent,
         role: "ASSISTANT",
         type: "RESULT",
       });
@@ -936,9 +954,7 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
         messageId: messageId as Id<"messages">,
         sandboxId: e2bResult.sandboxId,
         sandboxUrl: e2bResult.sandboxUrl,
-        title: isMessageArray(fragmentTitleOutput)
-          ? parseAgentOutput(fragmentTitleOutput)
-          : "Fragment",
+        title: fragmentTitle,
         files: e2bResult.files,
         metadata: {
           source: "inngest-agent-kit",
@@ -957,7 +973,7 @@ After finishing, return a concise summary wrapped in <task_summary> tags.`;
 
     return {
       url: e2bResult.sandboxUrl,
-      title: "Fragment",
+      title: fragmentTitle,
       files: e2bResult.files,
       summary: e2bResult.summary,
     };
