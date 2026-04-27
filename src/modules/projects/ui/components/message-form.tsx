@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import TextareaAutosize from "react-textarea-autosize";
 import {
@@ -74,6 +75,8 @@ export const MessageForm = ({
   onInstructionSent,
 }: Props) => {
   const router = useRouter();
+  const { isSignedIn } = useAuth();
+  const { openSignIn } = useClerk();
 
   const usage = useQuery(api.usage.getUsage);
   const createMessageWithAttachments = useAction(api.messages.createWithAttachments);
@@ -112,6 +115,13 @@ Current text: "${element.textContent?.slice(0, 100) || "N/A"}"`;
   }, [pendingElementInstruction, form, onInstructionSent]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!isSignedIn) {
+      openSignIn({
+        redirectUrl: window.location.href,
+      });
+      return;
+    }
+
     try {
       setIsCreating(true);
       
