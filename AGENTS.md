@@ -104,3 +104,11 @@ bun run convex:deploy    # Deploy Convex to production
 - **Credit system**: Free tier (5/day), Pro (100/day), tracked in `usage.ts`
 - **Agent retries**: Auto-fix on build/lint failures up to 2 times
 - **Security**: Zod validation on all inputs, OAuth tokens encrypted in Convex
+
+<!-- convex-ai-start -->
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read `convex/_generated/ai/guidelines.md` first** for important guidelines on how to correctly use Convex APIs and patterns. The file contains rules that override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
+<!-- convex-ai-end -->

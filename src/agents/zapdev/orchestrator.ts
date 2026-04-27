@@ -4,6 +4,7 @@ import { runExaResearch } from "./workers/exa-research";
 import { runReview } from "./workers/review";
 import { buildEnrichedSystemPrompt } from "./context-builder";
 import { isUIGenerationRequest } from "./prompts";
+import { aiPickTasteSkill, fetchTasteSkill } from "./taste-router";
 import type { AgentPlan, ResearchArtifact, ReviewArtifact } from "./types";
 
 export interface OrchestrationInput {
@@ -65,11 +66,17 @@ export async function runPreflight(
     exaResearch = exaResult;
   }
 
+  const tasteSkill = await aiPickTasteSkill(workingMessage);
+  const tasteSkillContent = tasteSkill
+    ? await fetchTasteSkill(tasteSkill.id)
+    : null;
+
   const enrichedSystemPrompt = buildEnrichedSystemPrompt({
     basePrompt: baseSystemPrompt,
     plan,
     repoResearch,
     exaResearch,
+    tasteSkillContent,
   });
 
   return {

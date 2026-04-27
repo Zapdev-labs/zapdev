@@ -16,6 +16,13 @@ export {
   ENHANCE_SYSTEM_PROMPT,
   isUIGenerationRequest,
 } from "./prompts";
+export {
+  aiPickTasteSkill,
+  fetchTasteSkill,
+  quickMatchTasteSkill,
+  TASTE_SKILLS,
+  type TasteSkill,
+} from "./taste-router";
 export { extractJSONFromMarkdown, safeParseAIJSON, truncate } from "./utils";
 export type {
   AgentPlan,

@@ -16,9 +16,14 @@ export function buildEnrichedSystemPrompt(options: {
   plan: AgentPlan;
   repoResearch: ResearchArtifact | null;
   exaResearch: ResearchArtifact | null;
+  tasteSkillContent?: string | null;
 }): string {
-  const { basePrompt, plan, repoResearch, exaResearch } = options;
+  const { basePrompt, plan, repoResearch, exaResearch, tasteSkillContent } = options;
   let prompt = basePrompt;
+
+  if (tasteSkillContent) {
+    prompt += `\n\n<taste_skill>\n${escapePromptData(tasteSkillContent)}\n</taste_skill>`;
+  }
 
   if (repoResearch?.summary) {
     prompt += `\n\n<repo_research>\n${UNTRUSTED_CONTEXT_NOTICE}\n\n${escapePromptData(repoResearch.summary)}`;
