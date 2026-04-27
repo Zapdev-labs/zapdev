@@ -627,3 +627,48 @@ export const createFragmentForUser = mutation({
     });
   },
 });
+
+/**
+ * Clean up old ERROR messages that contain debug details
+ * One-time migration to remove debug info from user-facing messages
+ */
+export const cleanupOldErrorMessages = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireAuth(ctx);
+    
+    // Get all projects for this user
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+
+    let updatedCount = 0;
+    const userMessage = "Sorry, I encountered an error while generating code. Please try again.";
+
+    for (const project of projects) {
+      // Get messages for this project
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_projectId", (q) => q.eq("projectId", project._id))
+        .collect();
+
+      for (const message of messages) {
+        // Only process ERROR messages with old debug text
+        if (message.type === "ERROR" && message.role === "ASSISTANT" &&
+            (message.content.includes("The background coding agent failed") ||
+             message.content.includes("Requested model:") ||
+             message.content.includes("Provider details:"))) {
+          
+          await ctx.db.patch(message._id, {
+            content: userMessage,
+            updatedAt: Date.now(),
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    return updatedCount;
+  },
+});
