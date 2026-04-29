@@ -788,12 +788,13 @@ async function runE2bCodingAgentWithFallbacks(input: {
   requestedModel: string;
   retryModels: string[];
   codeSystem: string;
+  sandbox?: Sandbox;
 }): Promise<CodingAgentRunResult> {
   let lastError: unknown;
 
   // Create ONE sandbox and reuse it across all retry attempts
-  console.log(`[DEBUG] Creating sandbox for coding agent (will reuse across ${input.retryModels.length} retry models)...`);
-  const sandbox = await createSandbox(input.framework);
+  console.log(`[DEBUG] Preparing sandbox for coding agent (will reuse across ${input.retryModels.length} retry models)...`);
+  const sandbox = input.sandbox ?? (await createSandbox(input.framework));
   console.log(`[DEBUG] Created sandbox ${sandbox.sandboxId} for reuse across retries`);
 
   for (const [index, attemptModel] of input.retryModels.entries()) {
@@ -887,6 +888,7 @@ async function persistAgentFailure(input: {
 export const codeAgentFunction = inngest.createFunction(
   {
     id: "code-agent",
+    retries: 0,
     concurrency: {
       limit: 3,
       key: "event.data.userId",
@@ -900,7 +902,7 @@ export const codeAgentFunction = inngest.createFunction(
 
     const shouldPlan = shouldRunPlanning(userPrompt, complexity);
 
-    const [plan, previousMessages] = await Promise.all([
+    const [plan, previousMessages, project] = await Promise.all([
       !shouldPlan
         ? Promise.resolve("")
         : step.run("planning-agent", () => runPlanningAgent(userPrompt)),
@@ -918,28 +920,27 @@ export const codeAgentFunction = inngest.createFunction(
           return [];
         }
       }),
+      step.run("load-project", async () => {
+        const convex = getConvexClient();
+        return convex.query(api.projects.getForUser, {
+          userId: event.data.userId as string,
+          projectId: event.data.projectId as Id<"projects">,
+        });
+      }),
     ]);
 
     const { recentMessages, conversationSummary } = formatConversationContext(
       toConversationContextMessages(previousMessages)
     );
 
-    const research =
-      complexity === "complex" && plan
-        ? await step.run("research-agent", () =>
-            runResearchAgent(userPrompt, plan)
-          )
-        : "";
-
-    const project = await step.run("load-project", async () => {
-      const convex = getConvexClient();
-      return convex.query(api.projects.getForUser, {
-        userId: event.data.userId as string,
-        projectId: event.data.projectId as Id<"projects">,
-      });
-    });
-
     const framework = convexFrameworkToAgent(project.framework);
+    const sandboxPromise = createSandbox(framework);
+    const researchPromise =
+      complexity === "complex" && plan
+        ? step.run("research-agent", () => runResearchAgent(userPrompt, plan))
+        : Promise.resolve("");
+
+    const [research, sandbox] = await Promise.all([researchPromise, sandboxPromise]);
 
     const selectedModel = getModelForAgent(
       event.data.model as string | undefined,
@@ -995,6 +996,7 @@ export const codeAgentFunction = inngest.createFunction(
         requestedModel: selectedModel,
         retryModels: codingPlan.retryModels,
         codeSystem,
+        sandbox,
       });
     } catch (error) {
       logProviderDebug("coding-agent.network.run.failed", {
@@ -1021,7 +1023,15 @@ export const codeAgentFunction = inngest.createFunction(
         complexity,
         error,
       });
-      throw error;
+
+      const fallbackSummary =
+        "Sorry, I encountered an error while generating code. Please try again.";
+      return {
+        url: "",
+        title: "Generation failed",
+        files: {},
+        summary: fallbackSummary,
+      };
     }
 
     const fragmentTitle = buildFragmentTitle(userPrompt, e2bResult.summary);

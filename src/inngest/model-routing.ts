@@ -1,6 +1,6 @@
 const TOOL_CALLING_FALLBACK_MODEL = "moonshotai/kimi-k2.6";
 const DEFAULT_AGENTKIT_MANAGER_MODEL =
-  process.env.ZAPDEV_AGENT_MANAGER_MODEL?.trim() || "deepseek/deepseek-v4-pro";
+  process.env.ZAPDEV_AGENT_MANAGER_MODEL?.trim() || "moonshotai/kimi-k2.6";
 
 const MODELS_WITH_UNRELIABLE_AGENTKIT_TOOLS = new Set([
   "arcee-ai/trinity-large-thinking",
@@ -65,4 +65,3 @@ export const resolveCodingModelPlan = (
     ]),
   };
 };
-

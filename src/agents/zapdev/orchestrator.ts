@@ -45,6 +45,7 @@ export async function runPreflight(
 
   const workingMessage = enhancedPrompt ?? userMessage;
 
+  const tasteSkillPromise = aiPickTasteSkill(workingMessage);
   const plan = await runPlanner(workingMessage, contextSummary);
 
   let repoResearch: ResearchArtifact | null = null;
@@ -66,7 +67,7 @@ export async function runPreflight(
     exaResearch = exaResult;
   }
 
-  const tasteSkill = await aiPickTasteSkill(workingMessage);
+  const tasteSkill = await tasteSkillPromise;
   const tasteSkillContent = tasteSkill
     ? await fetchTasteSkill(tasteSkill.id)
     : null;

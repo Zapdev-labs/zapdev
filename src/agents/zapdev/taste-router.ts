@@ -114,7 +114,7 @@ export async function fetchTasteSkill(skillId: string): Promise<string | null> {
 
   const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${skill.githubPath}`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) return null;
     const text = await res.text();
     SKILL_CACHE.set(skillId, text);
@@ -155,10 +155,12 @@ const ROUTER_MODEL = "google/gemini-2.0-flash-001";
 
 export async function aiPickTasteSkill(userMessage: string): Promise<TasteSkill | null> {
   const quick = quickMatchTasteSkill(userMessage);
-  if (quick && quick.category !== "frontend") {
-    // High-confidence non-frontend match — trust it immediately
+  if (quick) {
+    // Avoid an extra routing LLM call on the hot path when keywords are decisive.
     return quick;
   }
+
+  if (process.env.ZAPDEV_AI_TASTE_ROUTER !== "1") return null;
 
   const skillList = TASTE_SKILLS.map(
     (s) => `- ${s.id}: ${s.description} (keywords: ${s.keywords.slice(0, 6).join(", ")})`

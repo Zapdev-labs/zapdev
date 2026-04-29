@@ -23,25 +23,27 @@ export async function runExaResearch(
   const exa = new Exa(exaKey);
   const allResults: { url: string; title: string; text: string }[] = [];
 
-  for (let i = 0; i < searchQueries.slice(0, 3).length; i++) {
-    const query = searchQueries[i];
-    try {
-      const response = await exa.searchAndContents(query, {
-        type: "auto",
-        numResults: MAX_RESULTS_PER_QUERY,
-        text: { maxCharacters: MAX_CONTENT_LENGTH },
-      });
-      for (const result of response.results) {
-        allResults.push({
+  const searchResults = await Promise.all(
+    searchQueries.slice(0, 3).map(async (query, i) => {
+      try {
+        const response = await exa.searchAndContents(query, {
+          type: "auto",
+          numResults: MAX_RESULTS_PER_QUERY,
+          text: { maxCharacters: MAX_CONTENT_LENGTH },
+        });
+        return response.results.map((result) => ({
           url: result.url,
           title: result.title ?? query,
           text: (result.text ?? "").slice(0, MAX_CONTENT_LENGTH),
-        });
+        }));
+      } catch (err) {
+        console.error(`[EXA] search failed for query #${i + 1}:`, err);
+        return [];
       }
-    } catch (err) {
-      console.error(`[EXA] search failed for query #${i + 1}:`, err);
-    }
-  }
+    })
+  );
+
+  allResults.push(...searchResults.flat());
 
   if (allResults.length === 0) {
     return { summary: "External search returned no results.", citations: [], skip: true };
