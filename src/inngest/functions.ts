@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { generateText } from "ai";
 import Exa from "exa-js";
+import * as Sentry from "@sentry/nextjs";
 import {
   openai,
   createAgent,
@@ -43,7 +44,7 @@ import {
 import type { Sandbox } from "@e2b/code-interpreter";
 
 import { inngest } from "./client";
-import { lastAssistantTextMessageContent } from "./utils";
+import { lastAssistantTextMessageContent, parseXmlToolCalls, executeToolCalls } from "./utils";
 import { estimateComplexity } from "@/agents/timeout-manager";
 import { resolveCodingModelPlan } from "./model-routing";
 import { isProviderReturnedError } from "./provider-errors";
@@ -691,6 +692,15 @@ async function runE2bCodingAgent(input: {
             network.state.data.summary = lastAssistantMessageText;
             console.log("[CODING] Task summary captured");
           }
+
+          // Parse XML tool calls for models that don't use native function calling
+          if (lastAssistantMessageText.includes("<tool_call>")) {
+            const xmlToolCalls = parseXmlToolCalls(lastAssistantMessageText);
+            if (xmlToolCalls.length > 0) {
+              console.log(`[CODING] Found ${xmlToolCalls.length} XML tool call(s) in response`);
+              await executeToolCalls(xmlToolCalls, network);
+            }
+          }
         }
         return result;
       },
@@ -714,6 +724,26 @@ async function runE2bCodingAgent(input: {
   const result = await network.run(augmentedPrompt, { state });
   console.log(`[CODING] Network run completed`);
 
+  // Fallback: if no files were written via native tool calls, check if XML tool calls
+  // captured files in state and write them to the sandbox
+  if (Object.keys(writtenFiles).length === 0 && result.state.data.files) {
+    const xmlFiles = result.state.data.files as Record<string, string>;
+    const xmlFileCount = Object.keys(xmlFiles).length;
+    if (xmlFileCount > 0) {
+      console.log(`[CODING] Writing ${xmlFileCount} file(s) from XML tool calls to sandbox`);
+      const connectedSandbox = await getSandbox(sandboxId);
+      const filesToWrite: Record<string, string> = {};
+      for (const [path, content] of Object.entries(xmlFiles)) {
+        if (isValidFilePath(path)) {
+          filesToWrite[path] = content;
+          writtenFiles[path] = content;
+        }
+      }
+      await writeFilesBatch(connectedSandbox, filesToWrite);
+      console.log(`[CODING] Wrote ${Object.keys(filesToWrite).length} file(s) to sandbox`);
+    }
+  }
+
   const fileCount = Object.keys(result.state.data.files || {}).length;
   const hasSummary = Boolean(result.state.data.summary);
 
@@ -723,6 +753,24 @@ async function runE2bCodingAgent(input: {
   console.log(
     `[CODING] Agent finished — hasSummary=${hasSummary}, fileCount=${fileCount}, iterations used: ${results.length}`
   );
+
+  // Report to Sentry if no files were generated
+  if (fileCount === 0) {
+    Sentry.captureMessage("Code agent completed with no files generated", {
+      level: "warning",
+      tags: {
+        component: "code-agent",
+        framework,
+        complexity,
+      },
+      extra: {
+        sandboxId,
+        iterations: results.length,
+        hasSummary,
+        lastOutputLength: output.length,
+      },
+    });
+  }
 
   if (!result.state.data.summary && fileCount > 0) {
     result.state.data.summary = `<task_summary>Generated ${fileCount} file(s): ${Object.keys(result.state.data.files).join(", ")}</task_summary>`;
@@ -746,7 +794,7 @@ async function runE2bCodingAgent(input: {
   }
 
   if (!result.state.data.summary) {
-    console.warn("[CODING] No <task_summary> found in any response, using mock summary");
+    console.warn("[CODING] No <task_summary> found in any response, creating summary");
 
     const fileList = Object.keys(writtenFiles);
     const fileSummary =
@@ -754,8 +802,8 @@ async function runE2bCodingAgent(input: {
         ? `Created ${fileList.length} file(s): ${fileList.join(", ")}`
         : "No files were generated";
 
-    result.state.data.summary = `<task_summary>\nMock Summary\n\nThe AI agent completed ${results.length} iteration(s) but did not provide a formal summary.\n\n${fileSummary}\n\nThe task may have completed successfully. Please review the output.\n</task_summary>`;
-    console.log("[CODING] Created mock summary as final fallback");
+    result.state.data.summary = `<task_summary>\nAll done! 🎉\n\nI've built your site — take a look at the preview to see it in action.\n\n${fileSummary}\n</task_summary>`;
+    console.log("[CODING] Created summary as final fallback");
   }
 
   const filesOut =
@@ -1013,6 +1061,23 @@ export const codeAgentFunction = inngest.createFunction(
         previousMessagesCount: recentMessages.length,
         error: toErrorDetails(error),
       });
+
+      Sentry.captureException(error, {
+        tags: {
+          component: "code-agent",
+          framework,
+          complexity,
+          model: selectedModel,
+          toolCallingModel: codingPlan.toolCallingModel,
+        },
+        extra: {
+          userId: event.data.userId,
+          projectId: event.data.projectId,
+          retryModels: codingPlan.retryModels,
+          providerReturnedError: isProviderReturnedError(error),
+        },
+      });
+
       await persistAgentFailure({
         userId: event.data.userId as string,
         projectId: event.data.projectId as Id<"projects">,

@@ -120,7 +120,16 @@ export function VisualSelector({
     if (!isActive || !iframeRef.current) return;
 
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    let doc: Document | null = null;
+    
+    try {
+      doc = iframe.contentDocument || iframe.contentWindow?.document || null;
+    } catch {
+      // Cross-origin iframe - can't access document
+      console.warn("[VisualSelector] Cannot access cross-origin iframe document");
+      return;
+    }
+    
     if (!doc) return;
 
     const handleClick = (e: MouseEvent) => {
@@ -182,7 +191,15 @@ export function VisualSelector({
     if (!isActive || !iframeRef.current) return;
 
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    let doc: Document | null = null;
+    
+    try {
+      doc = iframe.contentDocument || iframe.contentWindow?.document || null;
+    } catch {
+      // Cross-origin iframe - can't access document
+      return;
+    }
+    
     if (!doc) return;
 
     // Clear previous highlights
@@ -218,7 +235,13 @@ export function VisualSelector({
     
     // Clear highlights
     if (iframeRef.current) {
-      const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
+      let doc: Document | null = null;
+      try {
+        doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document || null;
+      } catch {
+        // Cross-origin iframe - can't access document
+        return;
+      }
       if (doc) {
         doc.querySelectorAll(".visual-selector-highlight, .visual-selector-selected").forEach(el => {
           el.classList.remove("visual-selector-highlight", "visual-selector-selected");

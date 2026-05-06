@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
 import { generateMetadata as generateSEOMetadata } from "@/lib/seo";
+import { ErrorFallback } from "@/components/error-fallback";
 
 import { ProjectView } from "@/modules/projects/ui/views/project-view";
 
@@ -76,7 +77,7 @@ const Page = async ({ params }: Props) => {
 
   // Convex handles data fetching on the client - no prefetching needed
   return (
-    <ErrorBoundary fallback={<p>Error!</p>}>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Suspense fallback={<p>Loading Project...</p>}>
         <ProjectView projectId={projectId} />
       </Suspense>
