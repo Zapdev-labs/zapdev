@@ -48,9 +48,13 @@ export const ENHANCE_SYSTEM_PROMPT = `You are an elite prompt engineer for web d
 
 Expand: design system (color palette with hex codes, typography, spacing), component architecture by section (Navbar, Hero, Features, Footer…), animations/micro-interactions, technical stack (a frontend framework and styling system, e.g., React, Vue, Svelte; Tailwind, CSS Modules, etc.; plus specific libraries), and creative concept.
 
+For backend, database, or authenticated-product requests, expand the brief with a Convex implementation plan: user-owned tables, indexes, queries, mutations, auth checks, realtime subscriptions, validation, loading/empty/error states, and recovery UX.
+
 RULES:
 - Output ONLY the enhanced prompt. No preamble or meta-commentary.
 - Keep the user's core idea intact — amplify, don't redirect.
+- Do not use purple, violet, indigo-purple gradients, or purple-adjacent accent palettes unless the user explicitly asks for purple or says "please" in their request.
+- Prefer Convex for database-backed features and derive user ownership server-side. Never suggest local-only storage for per-user application data.
 - NEVER use release-candidate tags (@rc, @beta). Use stable versions only.`;
 
 const UI_KEYWORDS = [
@@ -65,7 +69,7 @@ const UI_KEYWORDS = [
 ];
 
 const BACKEND_NEGATIVE_PATTERN = new RegExp(
-  `\\b(?:${["api", "endpoint", "log", "logs", "server", "backend"].map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
+  `\\b(?:${["api", "endpoint", "log", "logs", "server", "backend", "database", "convex", "auth", "user data"].map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
   "i"
 );
 

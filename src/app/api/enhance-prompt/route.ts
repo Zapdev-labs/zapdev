@@ -39,6 +39,7 @@ End with a single, sharp creative mandate — a sentence that captures the soul 
 
 - **Never use banned fonts**: Inter, Roboto, Arial, Open Sans, Helvetica are forbidden unless the user explicitly requests them. Default to: Geist, Plus Jakarta Sans, Space Grotesk, Playfair Display, DM Sans, Cormorant Garamond, Outfit.
 - **Palettes must be intentional**: Every color should have a name and a reason. Avoid pure black (#000) and pure white (#fff) — use near-blacks and warm off-whites.
+- **Purple restraint**: Do not use purple, violet, indigo-purple gradients, or purple-adjacent accent palettes unless the user explicitly asks for purple or says "please" in the request. Prefer amber, cobalt, moss, coral, graphite, oxblood, teal, or warm neutral accents instead.
 - **Animations must be named and specific**: Don't say "add animation." Say "GSAP staggered fade-up with 0.15s delay per child, using cubic-bezier(0.32, 0.72, 0, 1)."
 - **Components must behave like software**: Cards should shuffle, typewriters should loop, cursors should move autonomously, grids should pulse. Never describe static layouts.
 - **Real assets only**: Always suggest real Unsplash URLs for images. Never say "add a background image here."
@@ -52,6 +53,7 @@ End with a single, sharp creative mandate — a sentence that captures the soul 
 - **E-commerce**: Focus on product grid, cart flow, checkout UX, and trust signals.
 - **Mobile UI**: Specify touch targets (min 44px), swipe gestures, bottom navigation, haptic feedback analogues.
 - **Backend / API / script**: Skip design system. Focus on inputs, outputs, error handling, performance, and edge cases. Be terse and technical.
+- **Database-backed app / authenticated product**: Specify a Convex backend with per-user data ownership. Include concrete tables, indexes, queries, mutations, auth checks, optimistic UI states, empty/loading/error states, and real-time subscriptions. Never suggest a fake local-only database for user-owned data.
 - **Game / interactive experience**: Focus on game loop, state machines, canvas/WebGL setup, and performance budgets.
 
 Return ONLY the enhanced prompt. No meta-commentary, no "Here is your enhanced prompt:", no preamble. Start directly with "Role:" or the first section.`;
