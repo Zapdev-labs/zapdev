@@ -44,7 +44,7 @@ import {
 import type { Sandbox } from "@e2b/code-interpreter";
 
 import { inngest } from "./client";
-import { lastAssistantTextMessageContent, parseXmlToolCalls, executeToolCalls } from "./utils";
+import { lastAssistantTextMessageContent, parseXmlToolCalls, executeToolCalls, extractFilesFromMarkdown } from "./utils";
 import { estimateComplexity } from "@/agents/timeout-manager";
 import { resolveCodingModelPlan } from "./model-routing";
 import { isProviderReturnedError } from "./provider-errors";
@@ -744,6 +744,36 @@ async function runE2bCodingAgent(input: {
     }
   }
 
+  // Fallback 3: Extract files from markdown code blocks if model outputs them as text
+  if (Object.keys(writtenFiles).length === 0 && Object.keys(result.state.data.files || {}).length === 0) {
+    const results = result.state.results;
+    const lastResult = results.length > 0 ? results[results.length - 1] : null;
+    if (lastResult) {
+      const lastAssistantText = lastAssistantTextMessageContent(lastResult);
+      if (lastAssistantText) {
+        const markdownFiles = extractFilesFromMarkdown(lastAssistantText);
+        if (markdownFiles.length > 0) {
+          console.log(`[CODING] Extracting ${markdownFiles.length} file(s) from markdown code blocks`);
+          const connectedSandbox = await getSandbox(sandboxId);
+          const filesToWrite: Record<string, string> = {};
+          for (const file of markdownFiles) {
+            if (isValidFilePath(file.path)) {
+              filesToWrite[file.path] = file.content;
+              writtenFiles[file.path] = file.content;
+              // Also update state
+              if (!result.state.data.files) {
+                result.state.data.files = {};
+              }
+              result.state.data.files[file.path] = file.content;
+            }
+          }
+          await writeFilesBatch(connectedSandbox, filesToWrite);
+          console.log(`[CODING] Wrote ${Object.keys(filesToWrite).length} file(s) from markdown to sandbox`);
+        }
+      }
+    }
+  }
+
   const fileCount = Object.keys(result.state.data.files || {}).length;
   const hasSummary = Boolean(result.state.data.summary);
 
@@ -936,7 +966,7 @@ async function persistAgentFailure(input: {
 export const codeAgentFunction = inngest.createFunction(
   {
     id: "code-agent",
-    retries: 0,
+    retries: 2,
     concurrency: {
       limit: 3,
       key: "event.data.userId",

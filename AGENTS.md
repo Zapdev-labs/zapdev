@@ -1,7 +1,7 @@
 # ZapDev - AI-Powered Code Generation Platform
 
 **Generated**: 2026-01-04  
-**Tech**: Next.js 15 (App Router), React 19, Convex, tRPC, Tailwind v4, Bun
+**Tech**: Next.js 15 (App Router), React 19, Convex, tRPC, Tailwind v4, Bun + Socket Firewall Free (`sfw`)
 
 ## STRUCTURE
 
@@ -27,21 +27,20 @@
 ## ESSENTIAL COMMANDS
 
 ```bash
-# ALWAYS use bun (never npm/pnpm/yarn)
-bun install              # Install dependencies
-bun run dev              # Next.js dev server (Turbopack, port 3000)
-bun run convex:dev       # Convex backend (separate terminal, REQUIRED)
-bun run build            # Production build with Turbopack
-bun run lint             # ESLint (flat config)
-bun run test             # Jest (Node environment, tests/ directory)
+sfw bun install                           # Install dependencies
+sfw bun run dev                           # Next.js dev server (Turbopack, port 3000)
+sfw bun run convex:dev                    # Convex backend (separate terminal, REQUIRED)
+sfw bun run build                         # Production build with Turbopack
+sfw bun run lint                          # ESLint (flat config)
+sfw bun run test                          # Jest (Node environment, tests/ directory)
 
 # Database
-bun run convex:deploy    # Deploy Convex to production
+sfw bun run convex:deploy                 # Deploy Convex to production
 ```
 
 ## CONVENTIONS
 
-**Package Management**: Bun exclusively. Both `bun.lock` and `pnpm-lock.yaml` exist (debt) — ignore pnpm.
+**Package Management**: Use Socket Firewall Free with Bun (`sfw bun ...`) for all package operations. Both `bun.lock` and `pnpm-lock.yaml` exist.
 
 **TypeScript**: Strict mode, `@typescript-eslint/no-explicit-any` = warn (not error).  
 **Path Aliases**: `@/*` → `src/*`, `@/convex/*` → `convex/*`
@@ -54,14 +53,14 @@ bun run convex:deploy    # Deploy Convex to production
 
 ## ANTI-PATTERNS (HIGH SIGNAL)
 
-- **NEVER** use `npm` or `pnpm` — Bun only
+- **NEVER** use raw `npm`, `pnpm`, or `yarn` commands. Use `sfw bun ...` for all package operations.
 - **NEVER** use `.filter()` in Convex queries — use `.withIndex()` to avoid O(N) scans
 - **NEVER** expose Clerk user IDs in public APIs
 - **NEVER** add stray documentation `.md` files unless the user asks — keep `README.md`, `AGENTS.md`, and `CLAUDE.md` as the main references
 - **NEVER** use absolute paths in AI-generated code (e.g., `/home/user/...`)
 - **NEVER** load Tailwind as external stylesheet (use compiled CSS)
 - **NEVER** use `as` or `any` to suppress TypeScript errors (warns allowed, errors not)
-- **NEVER** run `bun convex:dev` without user permission (ask first)
+- **NEVER** run `sfw bun run convex:dev` without user permission (ask first)
 
 ## ARCHITECTURE NOTES
 
@@ -99,8 +98,8 @@ bun run convex:deploy    # Deploy Convex to production
 
 ## IMPORTANT CONSTRAINTS
 
-- **Lockfiles**: Both `bun.lock` and `pnpm-lock.yaml` exist — Bun is source of truth
-- **Convex migrations**: Use `bun run migrate:convex` for data migrations (rarely needed)
+- **Lockfiles**: Both `bun.lock` and `pnpm-lock.yaml` exist — use `sfw bun` for installs
+- **Convex migrations**: Use `sfw bun run migrate:convex` for data migrations (rarely needed)
 - **Credit system**: Free tier (5/day), Pro (100/day), tracked in `usage.ts`
 - **Agent retries**: Auto-fix on build/lint failures up to 2 times
 - **Security**: Zod validation on all inputs, OAuth tokens encrypted in Convex

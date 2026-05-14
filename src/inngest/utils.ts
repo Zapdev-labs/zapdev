@@ -124,3 +124,89 @@ export async function executeToolCalls(
     }
   }
 }
+
+export interface ExtractedFile {
+  path: string;
+  content: string;
+}
+
+/**
+ * Extract files from markdown code blocks in the model's text response.
+ * Handles formats like:
+ * ```tsx filename.tsx
+ * // content
+ * ```
+ * 
+ * Or:
+ * ```tsx
+ * // filename.tsx
+ * // content
+ * ```
+ */
+export function extractFilesFromMarkdown(content: string): ExtractedFile[] {
+  const files: ExtractedFile[] = [];
+  const seenPaths = new Set<string>();
+  
+  // Match markdown code fences: ```lang filename\ncontent```
+  const codeFenceRegex = /```[ \t]*(\w+)?[ \t]*([^\r\n`]*)\r?\n([\s\S]*?)```/g;
+  
+  let match;
+  while ((match = codeFenceRegex.exec(content)) !== null) {
+    const lang = match[1]?.trim().toLowerCase() ?? "";
+    const afterLang = match[2]?.trim() ?? "";
+    let codeContent = match[3]?.trim() ?? "";
+    
+    // Skip if it looks like a data block (JSON, etc.)
+    if (lang === "json" && !afterLang.includes(".")) continue;
+    
+    let filePath: string | null = null;
+    
+    // Pattern 1: filename after language tag: ```tsx app/page.tsx
+    if (afterLang && afterLang.includes("/") || afterLang.includes(".")) {
+      filePath = afterLang;
+    }
+    
+    // Pattern 2: comment at start of code: // app/page.tsx or /* app/page.tsx */
+    if (!filePath) {
+      const commentMatch = codeContent.match(/^(?:\/\/\s*([^\r\n]+)|\/\*\s*([^*]+)\*\/)/);
+      if (commentMatch) {
+        const potentialPath = (commentMatch[1] || commentMatch[2])?.trim() ?? "";
+        if (potentialPath.includes("/") || potentialPath.includes(".")) {
+          filePath = potentialPath;
+          // Remove the comment from the code content
+          codeContent = codeContent.replace(commentMatch[0], "").trimStart();
+        }
+      }
+    }
+    
+    // Pattern 3: look for file path patterns in the first few lines
+    if (!filePath) {
+      const lines = codeContent.split("\n");
+      for (let i = 0; i < Math.min(5, lines.length); i++) {
+        const line = lines[i].trim();
+        // Match patterns like: app/page.tsx, src/components/Button.tsx, etc.
+        const pathMatch = line.match(/^\s*(?:\/\/\s*)?([\w-]+\/[\w/.-]+\.(tsx?|jsx?|vue|svelte|css|scss|html|json|md|ts|js))/);
+        if (pathMatch) {
+          filePath = pathMatch[1];
+          // Remove this line from content
+          codeContent = lines.slice(0, i).concat(lines.slice(i + 1)).join("\n").trimStart();
+          break;
+        }
+      }
+    }
+    
+    if (filePath && codeContent) {
+      // Normalize path
+      filePath = filePath.replace(/^["']|["']$/g, "").trim();
+      
+      // Skip if we've seen this path
+      if (seenPaths.has(filePath)) continue;
+      seenPaths.add(filePath);
+      
+      files.push({ path: filePath, content: codeContent });
+      console.log(`[MARKDOWN_EXTRACT] Found file: ${filePath} (${codeContent.length} chars)`);
+    }
+  }
+  
+  return files;
+}
